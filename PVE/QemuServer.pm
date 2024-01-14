@@ -3168,13 +3168,19 @@ sub audio_devs {
 
     if ($audio->{dev} eq 'AC97') {
 	push @$devs, '-device', "AC97,id=${id}${audiopciaddr}$audiodev";
-    } elsif ($audio->{dev} eq 'sb16' || $audio->{dev} eq 'sb16-adlib-pcspk') {
+    } elsif ($audio->{dev} eq 'sb16') {
 	push @$devs, '-device', "sb16,id=${id}$audiodev";
-    } elsif ($audio->{dev} eq 'adlib' || $audio->{dev} eq 'sb16-adlib-pcspk') {
+    } elsif ($audio->{dev} eq 'adlib') {
 	push @$devs, '-device', "adlib,id=${id}$audiodev";
-    } elsif ($audio->{dev} eq 'pcspk' || $audio->{dev} eq 'sb16-adlib-pcspk') {
+    } elsif ($audio->{dev} eq 'pcspk') {
 	if (min_version($machine_version, 4, 2)) {
 	push @$devs, '-machine', "pcspk-audiodev=$audio->{backend_id}";
+	}
+	} elsif ($audio->{dev} eq 'sb16-adlib-pcspk') {
+	if (min_version($machine_version, 4, 2)) {
+	push @$devs, '-machine', "pcspk-audiodev=$audio->{backend_id}";
+	push @$devs, '-device', "sb16,id=${id}$audiodev";
+	push @$devs, '-device', "adlib,id=${id}$audiodev";
 	}
     } elsif ($audio->{dev} =~ /intel\-hda$/) {
 	push @$devs, '-device', "$audio->{dev},id=${id}${audiopciaddr}";
