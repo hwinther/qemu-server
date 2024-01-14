@@ -3179,8 +3179,8 @@ sub audio_devs {
 	} elsif ($audio->{dev} eq 'sb16-adlib-pcspk') {
 	if (min_version($machine_version, 4, 2)) {
 	push @$devs, '-machine', "pcspk-audiodev=$audio->{backend_id}";
-	push @$devs, '-device', "sb16,id=${id}$audiodev";
-	push @$devs, '-device', "adlib,id=${id}$audiodev";
+	push @$devs, '-device', "sb16$audiodev";
+	push @$devs, '-device', "adlib$audiodev";
 	}
     } elsif ($audio->{dev} =~ /intel\-hda$/) {
 	push @$devs, '-device', "$audio->{dev},id=${id}${audiopciaddr}";
