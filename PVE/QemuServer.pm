@@ -227,7 +227,7 @@ my $ivshmem_fmt = {
 my $audio_fmt = {
     device => {
 	type => 'string',
-	enum => [qw(ich9-intel-hda intel-hda AC97)],
+	enum => [qw(ich9-intel-hda intel-hda AC97 sb16 adlib pcspk sb16-adlib-pcspk)],
 	description =>  "Configure an audio device."
     },
     driver =>  {
@@ -3168,6 +3168,14 @@ sub audio_devs {
 
     if ($audio->{dev} eq 'AC97') {
 	push @$devs, '-device', "AC97,id=${id}${audiopciaddr}$audiodev";
+    } elsif ($audio->{dev} eq 'sb16' || $audio->{dev} eq 'sb16-adlib-pcspk') {
+	push @$devs, '-device', "sb16,id=${id}$audiodev";
+    } elsif ($audio->{dev} eq 'adlib' || $audio->{dev} eq 'sb16-adlib-pcspk') {
+	push @$devs, '-device', "adlib,id=${id}$audiodev";
+    } elsif ($audio->{dev} eq 'pcspk' || $audio->{dev} eq 'sb16-adlib-pcspk') {
+	if (min_version($machine_version, 4, 2)) {
+	push @$devs, '-machine', "pcspk-audiodev=$audio->{backend_id}";
+	}
     } elsif ($audio->{dev} =~ /intel\-hda$/) {
 	push @$devs, '-device', "$audio->{dev},id=${id}${audiopciaddr}";
 	push @$devs, '-device', "hda-micro,id=${id}-codec0,bus=${id}.0,cad=0$audiodev";
