@@ -126,7 +126,7 @@ PVE::JSONSchema::register_standard_option('pve-qm-stateuri', {
 PVE::JSONSchema::register_standard_option('pve-qemu-machine', {
 	description => "Specifies the QEMU machine type.",
 	type => 'string',
-	pattern => '(pc|pc(-i440fx)?-\d+(\.\d+)+(\+pve\d+)?(\.pxe)?|q35|pc-q35-\d+(\.\d+)+(\+pve\d+)?(\.pxe)?|virt(?:-\d+(\.\d+)+)?(\+pve\d+)?)',
+	pattern => '(pc|pc(-i440fx)?-\d+(\.\d+)+(\+pve\d+)?(\.pxe)?|q35|pc-q35-\d+(\.\d+)+(\+pve\d+)?(\.pxe)?|virt(?:-\d+(\.\d+)+)?(\+pve\d+)?|sun4[a-z]{1})',
 	maxLength => 40,
 	optional => 1,
 });
