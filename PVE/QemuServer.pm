@@ -3642,6 +3642,10 @@ sub config_to_command {
 	push $cmd->@*, '-drive', $var_drive_str;
     }
 
+    if ($conf->{bios} && $conf->{bios} eq 'ovmf' && $conf->{arch} && $conf->{arch} eq 'aarch64') {
+        # push @$cmd, '-bios', "edk2-aarch64-code.fd"; TODO might need this later
+    }
+
     if ($q35) { # tell QEMU to load q35 config early
 	# we use different pcie-port hardware for qemu >= 4.0 for passthrough
 	if (min_version($machine_version, 4, 0)) {
@@ -4087,6 +4091,8 @@ sub config_to_command {
 	} else {
 	    unshift @$devices, '-device', $devstr if $k > 0;
 	}
+
+print "Debug: q35=$q35 k=$k arch=$arch machine=$machine_type devstr=$devstr\n";
     }
 
     if (!$kvm) {
@@ -5905,6 +5911,9 @@ sub vm_start_nolock {
 		$tpmpid = start_swtpm($storecfg, $vmid, $tpm, $migratedfrom);
 	    }
 
+            print "cmd:\n";
+            foreach($cmd) { print join(" ", map { /^-/ ? $_ : "$_\n" } @$_), "\n"; }
+            #print "@$_\n" for $cmd;
 	    my $exitcode = run_command($cmd, %run_params);
 	    if ($exitcode) {
 		if ($tpmpid) {
