@@ -3403,6 +3403,8 @@ sub get_ovmf_files($$$) {
 }
 
 my $Arch2Qemu = {
+    sparc => '/usr/bin/qemu-system-sparc',
+    sparc64 => '/usr/bin/qemu-system-sparc64',
     aarch64 => '/usr/bin/qemu-system-aarch64',
     x86_64 => '/usr/bin/qemu-system-x86_64',
 };
