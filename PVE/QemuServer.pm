@@ -191,7 +191,7 @@ my $vga_fmt = {
 	default => 'std',
 	optional => 1,
 	default_key => 1,
-	enum => [qw(cirrus qxl qxl2 qxl3 qxl4 none serial0 serial1 serial2 serial3 std virtio virtio-gl vmware)],
+	enum => [qw(qxl qxl2 qxl3 qxl4 none serial0 serial1 serial2 serial3 std virtio virtio-gl vmware cirrus tcx cg3)],
     },
     memory => {
 	description => "Sets the VGA memory (in MiB). Has no effect with serial display.",
@@ -1495,7 +1495,9 @@ sub print_drivedevice_full {
 	    }
 	}
 
-	if (!$conf->{scsihw} || $conf->{scsihw} =~ m/^lsi/ || $conf->{scsihw} eq 'pvscsi') {
+	if ($arch eq 'sparc') {
+	    $device = "scsi-$devicetype,channel=0,scsi-id=0,lun=$drive->{index}";
+	} elsif (!$conf->{scsihw} || $conf->{scsihw} =~ m/^lsi/ || $conf->{scsihw} eq 'pvscsi') {
 	    $device = "scsi-$devicetype,bus=$controller_prefix$controller.0,scsi-id=$unit";
 	} else {
 	    $device = "scsi-$devicetype,bus=$controller_prefix$controller.0,channel=0,scsi-id=0"
@@ -3714,8 +3716,8 @@ sub config_to_command {
 	push $cmd->@*, '-drive', $var_drive_str;
     }
 
-    if ($conf->{bios} && $conf->{bios} eq 'ovmf' && $conf->{arch} && $conf->{arch} eq 'aarch64') {
-        # push @$cmd, '-bios', "edk2-aarch64-code.fd"; TODO might need this later
+    if ($conf->{bios} && $conf->{bios} eq 'ovmf' && $conf->{arch} && $conf->{arch} eq 'sparc') {
+        push @$cmd, '-bios', "$conf->{bios}";
     }
 
     if ($q35) { # tell QEMU to load q35 config early
@@ -3736,9 +3738,11 @@ sub config_to_command {
     }
 
     # add usb controllers
+    if ($arch ne 'sparc') {
     my @usbcontrollers = PVE::QemuServer::USB::get_usb_controllers(
 	$conf, $bridges, $arch, $machine_type, $machine_version);
     push @$devices, @usbcontrollers if @usbcontrollers;
+    }
     my $vga = parse_vga($conf->{vga});
 
     my $qxlnum = vga_conf_has_spice($conf->{vga});
@@ -3769,7 +3773,6 @@ sub config_to_command {
     }
 
     my $bootorder = device_bootorder($conf);
-
     # host pci device passthrough
     my ($kvm_off, $gpu_passthrough, $legacy_igd, $pci_devices) = PVE::QemuServer::PCI::print_hostpci_devices(
 	$vmid, $conf, $devices, $vga, $winversion, $bridges, $arch, $machine_type, $bootorder);
@@ -3856,7 +3859,12 @@ sub config_to_command {
 
     push @$cmd, '-no-reboot' if  defined($conf->{reboot}) && $conf->{reboot} == 0;
 
-    if ($vga->{type} && $vga->{type} !~ m/^serial\d+$/ && $vga->{type} ne 'none'){
+    if ($vga->{type} && $arch eq 'sparc') {
+        push @$cmd, '-vga', $vga->{type};
+
+	my $socket = PVE::QemuServer::Helpers::vnc_socket($vmid);
+	push @$cmd,  '-vnc', "unix:$socket,password=on";
+    } elsif ($vga->{type} && $vga->{type} !~ m/^serial\d+$/ && $vga->{type} ne 'none'){
 	push @$devices, '-device', print_vga_device(
 	    $conf, $vga, $arch, $machine_version, $machine_type, undef, $qxlnum, $bridges);
 
@@ -4068,7 +4076,7 @@ sub config_to_command {
 	    }
 
 	    push @$devices, '-device', "$scsihw_type,id=$controller_prefix$controller$pciaddr$iothread$queues"
-		if !$scsicontroller->{$controller};
+		if !$scsicontroller->{$controller} && $arch ne 'sparc';
 	    $scsicontroller->{$controller}=1;
 	}
 
@@ -4140,7 +4148,7 @@ sub config_to_command {
     # pci.4 is nested in pci.1
     $bridges->{1} = 1 if $bridges->{4};
 
-    if (!$q35) { # add pci bridges
+    if (!$q35 && $arch ne 'sparc') { # add pci bridges
 	if (min_version($machine_version, 2, 3)) {
 	   $bridges->{1} = 1;
 	   $bridges->{2} = 1;
