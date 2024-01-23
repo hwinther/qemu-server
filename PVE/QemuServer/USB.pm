@@ -135,7 +135,7 @@ sub get_usb_controllers {
 
     if ($arch eq 'aarch64') {
         push @$devices, '-device', "usb-ehci,id=ehci$pciaddr";
-    } elsif ($arch eq 'sparc' || $arch eq 'sparc64') {
+    } elsif ($arch =~ m/^sparc/) {
         print "USB disabled for sparc/sparc64\n";
     } elsif (!$is_q35) {
         $pciaddr = print_pci_addr("piix3", $bridges, $arch, $machine);
@@ -153,7 +153,7 @@ sub get_usb_controllers {
 	$use_usb2 = 1 if !$d->{usb3};
     }
 
-    if (!$use_qemu_xhci && !$is_q35 && $use_usb2 && $arch ne 'aarch64' && $arch ne 'sparc' && $arch ne 'sparc64') {
+    if (!$use_qemu_xhci && !$is_q35 && $use_usb2 && $arch ne 'aarch64' && $arch !~ m/^sparc/) {
 	# include usb device config if still on x86 before-xhci machines and if USB 3 is not used
 	push @$devices, '-readconfig', '/usr/share/qemu-server/pve-usb.cfg';
     }

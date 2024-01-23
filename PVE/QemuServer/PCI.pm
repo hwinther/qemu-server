@@ -284,8 +284,8 @@ sub print_pci_addr {
 
     my $res = '';
 
-    if ($arch eq 'sparc') {
-      print "sparc does not support PCI devices, ignoring: $id\n";
+    if ($arch =~ m/^sparc/) {
+      print "sparc/sparc64 does not support PCI devices, ignoring: $id\n";
       return $res;
     }
 

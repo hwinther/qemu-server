@@ -667,7 +667,7 @@ EODESCR
     bios => {
 	optional => 1,
 	type => 'string',
-	enum => [ qw(seabios ovmf) ],
+	enum => [ qw(seabios ovmf openbios-sparc openbios-sparc64 ss5.bin ss10_v2.25_rom ss20_v2.25_rom') ],
 	description => "Select BIOS implementation.",
 	default => 'seabios',
     },
@@ -1495,7 +1495,7 @@ sub print_drivedevice_full {
 	    }
 	}
 
-	if ($arch eq 'sparc') {
+	if ($arch =~ m/^sparc/) {
 	    $device = "scsi-$devicetype,channel=0,scsi-id=0,lun=$drive->{index}";
 	} elsif (!$conf->{scsihw} || $conf->{scsihw} =~ m/^lsi/ || $conf->{scsihw} eq 'pvscsi') {
 	    $device = "scsi-$devicetype,bus=$controller_prefix$controller.0,scsi-id=$unit";
@@ -3716,7 +3716,7 @@ sub config_to_command {
 	push $cmd->@*, '-drive', $var_drive_str;
     }
 
-    if ($conf->{bios} && $conf->{bios} eq 'ovmf' && $conf->{arch} && $conf->{arch} eq 'sparc') {
+    if ($conf->{bios} && $conf->{bios} eq 'ovmf' && $conf->{arch} && $conf->{arch} =~ m/^sparc/) {
         push @$cmd, '-bios', "$conf->{bios}";
     }
 
@@ -3738,7 +3738,7 @@ sub config_to_command {
     }
 
     # add usb controllers
-    if ($arch ne 'sparc') {
+    if ($arch !~ m/^sparc/) {
     my @usbcontrollers = PVE::QemuServer::USB::get_usb_controllers(
 	$conf, $bridges, $arch, $machine_type, $machine_version);
     push @$devices, @usbcontrollers if @usbcontrollers;
@@ -3859,11 +3859,11 @@ sub config_to_command {
 
     push @$cmd, '-no-reboot' if  defined($conf->{reboot}) && $conf->{reboot} == 0;
 
-    if ($vga->{type} && $arch eq 'sparc') {
+    if ($vga->{type} && $arch =~ m/^sparc/) {
         push @$cmd, '-vga', $vga->{type};
 
-	my $socket = PVE::QemuServer::Helpers::vnc_socket($vmid);
-	push @$cmd,  '-vnc', "unix:$socket,password=on";
+	    my $socket = PVE::QemuServer::Helpers::vnc_socket($vmid);
+	    push @$cmd,  '-vnc', "unix:$socket,password=on";
     } elsif ($vga->{type} && $vga->{type} !~ m/^serial\d+$/ && $vga->{type} ne 'none'){
 	push @$devices, '-device', print_vga_device(
 	    $conf, $vga, $arch, $machine_version, $machine_type, undef, $qxlnum, $bridges);
@@ -4076,7 +4076,7 @@ sub config_to_command {
 	    }
 
 	    push @$devices, '-device', "$scsihw_type,id=$controller_prefix$controller$pciaddr$iothread$queues"
-		if !$scsicontroller->{$controller} && $arch ne 'sparc';
+		if !$scsicontroller->{$controller} && $arch !~ m/^sparc/;
 	    $scsicontroller->{$controller}=1;
 	}
 
@@ -4148,7 +4148,7 @@ sub config_to_command {
     # pci.4 is nested in pci.1
     $bridges->{1} = 1 if $bridges->{4};
 
-    if (!$q35 && $arch ne 'sparc') { # add pci bridges
+    if (!$q35 && $arch !~ m/^sparc/) { # add pci bridges
 	if (min_version($machine_version, 2, 3)) {
 	   $bridges->{1} = 1;
 	   $bridges->{2} = 1;
