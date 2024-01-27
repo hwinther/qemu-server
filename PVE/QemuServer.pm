@@ -873,6 +873,7 @@ my $nic_model_list = [
     'virtio',
     'vmxnet3',
     'sunhme',
+    'lance',
 ];
 my $nic_model_list_txt = join(' ', sort @$nic_model_list);
 
@@ -1497,7 +1498,7 @@ sub print_drivedevice_full {
 	}
 
 	if ($arch eq 'sparc') {
-	    $device = "scsi-$devicetype,channel=0,scsi-id=0,lun=$drive->{index}";
+	    $device = "scsi-$devicetype,channel=0,scsi-id=$unit,lun=$drive->{index}";
 	} elsif (!$conf->{scsihw} || $conf->{scsihw} =~ m/^lsi/ || $conf->{scsihw} eq 'pvscsi') {
 	    $device = "scsi-$devicetype,bus=$controller_prefix$controller.0,scsi-id=$unit";
 	} else {
@@ -3717,7 +3718,7 @@ sub config_to_command {
 	push $cmd->@*, '-drive', $var_drive_str;
     }
 
-    if ($conf->{bios} && $conf->{bios} eq 'ovmf' && $conf->{arch} && $conf->{arch} =~ m/^sparc/) {
+    if ($conf->{bios} && ($conf->{bios} eq 'ovmf' || $conf->{arch} && $conf->{arch} =~ m/^sparc/)) {
         push @$cmd, '-bios', "$conf->{bios}";
     }
 
@@ -4122,12 +4123,20 @@ sub config_to_command {
 	$d->{bootindex} = $bootorder->{$netname} if $bootorder->{$netname};
 
 	my $netdevfull = print_netdev_full($vmid, $conf, $arch, $d, $netname);
-	push @$devices, '-netdev', $netdevfull;
+	if ($arch eq 'sparc') {
+		$netdevfull =~ s/net0/lance.0/;
+		push @$devices, '-net', $netdevfull;
+	} else {
+		push @$devices, '-netdev', $netdevfull;
+	}
 
 	my $netdevicefull = print_netdevice_full(
 	    $vmid, $conf, $d, $netname, $bridges, $use_old_bios_files, $arch, $machine_type, $machine_version);
 
-	if ($arch eq 'sparc64') {
+	if ($arch eq 'sparc') {
+		# lance is builtin and not pluggable on the sparc platform
+		push @$devices, '-net', "nic,model=lance,macaddr=08:00:20:b5:09:67"; # TODO: fix static hw
+	} elsif ($arch eq 'sparc64') {
 	    # On a real Ultra 5 all PCI devices are attached behind the two simba bridges;
 		# in-built devices are attached to bus A whilst bus B has 4 free PCI slots for use.
 		# https://wiki.qemu.org/Documentation/Platforms/SPARC
