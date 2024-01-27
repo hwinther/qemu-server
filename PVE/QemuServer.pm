@@ -872,6 +872,7 @@ my $nic_model_list = [
     'rtl8139',
     'virtio',
     'vmxnet3',
+    'sunhme',
 ];
 my $nic_model_list_txt = join(' ', sort @$nic_model_list);
 
@@ -1495,7 +1496,7 @@ sub print_drivedevice_full {
 	    }
 	}
 
-	if ($arch =~ m/^sparc/) {
+	if ($arch eq 'sparc') {
 	    $device = "scsi-$devicetype,channel=0,scsi-id=0,lun=$drive->{index}";
 	} elsif (!$conf->{scsihw} || $conf->{scsihw} =~ m/^lsi/ || $conf->{scsihw} eq 'pvscsi') {
 	    $device = "scsi-$devicetype,bus=$controller_prefix$controller.0,scsi-id=$unit";
@@ -4075,6 +4076,8 @@ sub config_to_command {
 		$queues = ",num_queues=$drive->{queues}";
 	    }
 
+	    push @$devices, '-device', "$scsihw_type,id=$controller_prefix$controller$pciaddr$iothread$queues,bus=pciB"
+		if !$scsicontroller->{$controller} && $arch eq 'sparc64';
 	    push @$devices, '-device', "$scsihw_type,id=$controller_prefix$controller$pciaddr$iothread$queues"
 		if !$scsicontroller->{$controller} && $arch !~ m/^sparc/;
 	    $scsicontroller->{$controller}=1;
@@ -4124,7 +4127,14 @@ sub config_to_command {
 	my $netdevicefull = print_netdevice_full(
 	    $vmid, $conf, $d, $netname, $bridges, $use_old_bios_files, $arch, $machine_type, $machine_version);
 
-	push @$devices, '-device', $netdevicefull;
+	if ($arch eq 'sparc64') {
+	    # On a real Ultra 5 all PCI devices are attached behind the two simba bridges;
+		# in-built devices are attached to bus A whilst bus B has 4 free PCI slots for use.
+		# https://wiki.qemu.org/Documentation/Platforms/SPARC
+	    push @$devices, '-device', "$netdevicefull,bus=pciB";
+	} else {
+	    push @$devices, '-device', $netdevicefull;
+	}
     }
 
     if ($conf->{ivshmem}) {
@@ -4172,7 +4182,7 @@ sub config_to_command {
 	    unshift @$devices, '-device', $devstr if $k > 0;
 	}
 
-print "Debug: q35=$q35 k=$k arch=$arch machine=$machine_type devstr=$devstr\n";
+	print "Debug: q35=$q35 k=$k arch=$arch machine=$machine_type devstr=$devstr\n";
     }
 
     if (!$kvm) {
