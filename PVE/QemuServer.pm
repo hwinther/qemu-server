@@ -1419,7 +1419,7 @@ sub print_drivedevice_full {
 	    $drive, $storecfg, $machine_version);
 
 	if ($arch eq 'sparc') {
-	    $device = "scsi-$device_type,channel=0,scsi-id=$unit,lun=$drive->{index}";
+		$device = "scsi-$device_type,channel=0,scsi-id=$unit,lun=0";
 	} elsif (!$conf->{scsihw} || $conf->{scsihw} =~ m/^lsi/ || $conf->{scsihw} eq 'pvscsi') {
 	    $device = "scsi-$device_type,bus=$controller_prefix$controller.0,scsi-id=$unit";
 	} else {
@@ -1492,6 +1492,9 @@ sub print_drivedevice_full {
 	$device .= ",serial=$serial";
     }
 
+	if ($arch =~ m/^sparc/ && $drive->{media} && $drive->{media} eq 'cdrom') {
+		$device .= ",physical_block_size=512";
+	}
 
     return $device;
 }
@@ -3835,11 +3838,13 @@ sub config_to_command {
 	push @$rtcFlags, 'base=localtime';
     }
 
+    if ($arch !~ m/^sparc/) { # TODO: support specifying cpu type for sparc platforms, until then let the machine use its default
     if ($forcecpu) {
 	push @$cmd, '-cpu', $forcecpu;
     } else {
 	push @$cmd, get_cpu_options($conf, $arch, $kvm, $kvm_off, $machine_version, $winversion, $gpu_passthrough);
     }
+	}
 
     PVE::QemuServer::Memory::config(
 	$conf, $vmid, $sockets, $cores, $hotplug_features->{memory}, $cmd);
