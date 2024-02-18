@@ -667,7 +667,7 @@ EODESCR
     bios => {
 	optional => 1,
 	type => 'string',
-	enum => [ qw(seabios ovmf openbios-sparc openbios-sparc64 ss5.bin ss10_v2.25_rom ss20_v2.25_rom') ],
+	enum => [ qw(seabios ovmf openbios-sparc32 openbios-sparc64 ss5.bin ss10_v2.25_rom ss20_v2.25_rom') ],
 	description => "Select BIOS implementation.",
 	default => 'seabios',
     },
@@ -3548,7 +3548,7 @@ sub query_understood_cpu_flags {
 my sub should_disable_smm {
     my ($conf, $vga, $machine) = @_;
 
-    return if $machine =~ m/^virt/; # there is no smm flag that could be disabled
+    return if $machine =~ m/^virt/ || $machine =~ m/^SS\-/; # there is no smm flag that could be disabled
 
     return (!defined($conf->{bios}) || $conf->{bios} eq 'seabios') &&
 	$vga->{type} && $vga->{type} =~ m/^(serial\d+|none)$/;
@@ -3706,9 +3706,13 @@ sub config_to_command {
 		$value =~ s/,/,,/g;
 		$smbios_string .= "," . $key . "=" . $value if $value;
 	    }
-	    push @$cmd, '-smbios', "type=1" . $smbios_string;
+		if ($arch !~ m/^sparc/) {
+			push @$cmd, '-smbios', "type=1" . $smbios_string;
+		}
 	} else {
-	    push @$cmd, '-smbios', "type=1,$conf->{smbios1}";
+		if ($arch !~ m/^sparc/) {
+			push @$cmd, '-smbios', "type=1,$conf->{smbios1}";
+		}
 	}
     }
 
@@ -3865,8 +3869,10 @@ sub config_to_command {
     if ($vga->{type} && $arch =~ m/^sparc/) {
         push @$cmd, '-vga', $vga->{type};
 
-	    my $socket = PVE::QemuServer::Helpers::vnc_socket($vmid);
-	    push @$cmd,  '-vnc', "unix:$socket,password=on";
+	    # TODO: if special mode
+	    #my $socket = PVE::QemuServer::Helpers::vnc_socket($vmid);
+	    #push @$cmd,  '-vnc', "unix:$socket,password=on";
+		$ENV{DISPLAY} = ':0'
     } elsif ($vga->{type} && $vga->{type} !~ m/^serial\d+$/ && $vga->{type} ne 'none'){
 	push @$devices, '-device', print_vga_device(
 	    $conf, $vga, $arch, $machine_version, $machine_type, undef, $qxlnum, $bridges);
@@ -5991,9 +5997,9 @@ sub vm_start_nolock {
 		$tpmpid = start_swtpm($storecfg, $vmid, $tpm, $migratedfrom);
 	    }
 
-            print "cmd:\n";
-            foreach($cmd) { print join(" ", map { /^-/ ? $_ : "$_\n" } @$_), "\n"; }
-            #print "@$_\n" for $cmd;
+        print "cmd:\n";
+        foreach($cmd) { print join(" ", map { /^-/ ? $_ : "$_ \\\n" } @$_), "\n"; }
+
 	    my $exitcode = run_command($cmd, %run_params);
 	    if ($exitcode) {
 		if ($tpmpid) {
