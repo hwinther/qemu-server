@@ -661,7 +661,7 @@ EODESCR
     bios => {
 	optional => 1,
 	type => 'string',
-	enum => [ qw(seabios ovmf openbios-sparc32 openbios-sparc64 ss5.bin ss10_v2.25_rom ss20_v2.25_rom') ],
+	enum => [ qw(seabios ovmf openbios-sparc32 openbios-sparc64 ss5.bin ss10_v2.25_rom ss20_v2.25_rom) ],
 	description => "Select BIOS implementation.",
 	default => 'seabios',
     },
