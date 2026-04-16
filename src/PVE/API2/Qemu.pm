@@ -1268,6 +1268,8 @@ __PACKAGE__->register_method({
         $rpcenv->check($authuser, "/storage/$storage", ['Datastore.AllocateSpace'])
             if defined($storage);
 
+        $rpcenv->check($authuser, "/", ['Sys.Console']) if $ha_managed;
+
         if ($rpcenv->check($authuser, "/vms/$vmid", ['VM.Allocate'], 1)) {
             # OK
         } elsif ($pool && $rpcenv->check($authuser, "/pool/$pool", ['VM.Allocate'], 1)) {
