@@ -1,3 +1,56 @@
+qemu-server (9.1.7) trixie; urgency=medium
+
+  * start vm: clarify the informational BitLocker message to state that
+    protectors must be disabled before enrolling UEFI keys, matching the
+    existing wording in the web UI and documentation.
+
+  * hotplug pending: avoid the USB-leftover and USB-hotplug-support checks,
+    along with the associated QMP calls, for unrelated config changes that do
+    not touch USB devices. Explicitly clean up a newly-plugged 'xhci'
+    controller in the error path of a failing USB hotplug, now that the
+    implicit cleanup is gone.
+
+  * migration: only warn about a missing 'host_mtu' setting on a network
+    device when it is actually unexpected, to avoid confusing log noise on
+    legacy machine versions with default MTU.
+
+  * backup: log 'starting backup via QMP command' between the filesystem
+    freeze and thaw messages, to make it obvious that the ordering of freeze,
+    backup start, and thaw is correct.
+
+  * backup: vma: prefix the bubbled-up QEMU error on backup start with
+    'executing QMP command to start backup failed -', to make the failing
+    operation easier to identify.
+
+  * cpu config: warn when a VM uses a qemu64- or kvm64-derived CPU model
+    without the 'pdpe1gb' flag, as OVMF will then limit the guest to 40
+    phys-bits, which can prevent booting VMs with large amounts of memory or
+    with GPU passthrough using lots of vRAM.
+
+  * api: disk move: log the core operations (allocate, copy, rename, remove
+    source) in the task log; clone disk: log the target volume ID after
+    allocating; api: disk reassign: include the target disk key and use
+    'reassign' in the log message to align with the UI term.
+
+  * api: vncproxy: align the VM-specific vncproxy endpoint for non-serial
+    displays with the serial-display behavior: listen only on localhost when
+    used through the 'websocket' parameter, and use TLS otherwise. This may
+    affect external VNC clients that connect directly without going through
+    'vncwebsocket' or that do not support TLS.
+
+  * api: vnc/termproxy: bind VNC and SPICE tickets to the listen port to
+    harden authentication for interactive console sessions. Also extends to
+    the SPICE proxy ticket used during live migration.
+
+  * api: vncproxy: always use a freshly generated password when authenticating
+    via the VNC protocol, improving entropy compared to the previous
+    ticket-derived scheme.
+
+  * api: termproxy: pin the accepted ticket in the spawned termproxy process
+    as an additional defense-in-depth measure.
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 21 Apr 2026 22:33:39 +0200
+
 qemu-server (9.1.6) trixie; urgency=medium
 
   * guest agent: rename 'guest-fsfreeze' setting to 'freeze-fs' for
