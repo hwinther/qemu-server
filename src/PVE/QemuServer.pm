@@ -5419,14 +5419,12 @@ my sub check_efi_vars {
 
     my $efidisk = parse_drive('efidisk0', $conf->{efidisk0});
     if (PVE::QemuServer::OVMF::should_enroll_ms_2023_cert($efidisk)) {
-        # TODO: make the first print a log_warn with PVE 9.2 to make it more noticeable!
-        print "EFI disk without 'ms-cert=2023k' option, suggesting that not all UEFI 2023\n";
-        print "certificates from Microsoft are enrolled yet. The UEFI 2011 certificates expire\n";
-        print
-            "in June 2026! The new certificates are required for secure boot update for Windows\n";
-        print "and common Linux distributions. Use 'Disk Action > Enroll Updated Certificates'\n";
-        print "in the UI or, while the VM is shut down, run 'qm enroll-efi-keys $vmid' to enroll\n";
-        print "the new certificates.\n\n";
+        log_warn("EFI disk without 'ms-cert=2023k' option, suggesting that not all UEFI 2023\n"
+            . "certificates from Microsoft are enrolled yet.");
+        print "The UEFI 2011 certificates expire in June 2026! The new certificates are required\n";
+        print "for secure boot update for Windows and common Linux distributions.\n";
+        print "Use 'Disk Action > Enroll Updated Certificates' in the UI or, while the VM is\n";
+        print "shut down, run 'qm enroll-efi-keys $vmid' to enroll the new certificates.\n\n";
         print "For Windows with BitLocker, run the following command inside Powershell:\n";
         print "  manage-bde -protectors -disable <drive>\n";
         print "for each drive with BitLocker (for example, <drive> could be 'C:').\n";
