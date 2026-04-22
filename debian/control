@@ -50,6 +50,7 @@ Depends: conntrack,
          liburi-perl,
          libuuid-perl,
          perl (>= 5.10.0-19),
+         proxmox-termproxy (>= 2.1.0),
          proxmox-websocket-tunnel,
          pve-cluster,
 # TODO: make legacy edk2 optional (suggests) for PVE 9 and warn explicitly about it
