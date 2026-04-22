@@ -1,3 +1,17 @@
+qemu-server (9.1.8) trixie; urgency=medium
+
+  * cloud-init: dns: avoid "uninitialized value in split" warning if there is
+    no 'searchdomain' cloud-init setting and also no 'search' setting in the
+    host's resolv.conf.
+
+  * api: dump cloud-init: mask password for user without VM.Config.Cloudinit
+    privilege.
+
+  * api: confirm Sys.Console privilege when creating or restoring a VM and
+    actively enabling HA for it.
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 22 Apr 2026 16:27:25 +0200
+
 qemu-server (9.1.7) trixie; urgency=medium
 
   * start vm: clarify the informational BitLocker message to state that
