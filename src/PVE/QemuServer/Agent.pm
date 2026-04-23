@@ -1,7 +1,6 @@
 package PVE::QemuServer::Agent;
 
-use strict;
-use warnings;
+use v5.36;
 
 use JSON;
 use MIME::Base64 qw(decode_base64 encode_base64);
@@ -62,9 +61,7 @@ our $agent_fmt = {
     },
 };
 
-sub parse_guest_agent {
-    my ($conf) = @_;
-
+sub parse_guest_agent($conf) {
     return {} if !defined($conf->{agent});
 
     my $res = eval { PVE::JSONSchema::parse_property_string($agent_fmt, $conf->{agent}) };
@@ -75,17 +72,14 @@ sub parse_guest_agent {
     return $res;
 }
 
-sub get_qga_key {
-    my ($conf, $key) = @_;
+sub get_qga_key($conf, $key) {
     return undef if !defined($conf->{agent});
 
     my $agent = parse_guest_agent($conf);
     return $agent->{$key};
 }
 
-sub qga_check_running {
-    my ($vmid, $nowarn) = @_;
-
+sub qga_check_running($vmid, $nowarn = 0) {
     eval { PVE::QemuServer::Monitor::mon_cmd($vmid, "guest-ping", timeout => 3); };
     if ($@) {
         warn "QEMU Guest Agent is not running - $@" if !$nowarn;
@@ -94,10 +88,7 @@ sub qga_check_running {
     return 1;
 }
 
-sub check_agent_error {
-    my ($result, $errmsg, $noerr) = @_;
-
-    $errmsg //= '';
+sub check_agent_error($result, $errmsg, $noerr = 0) {
     my $error = '';
     if (ref($result) eq 'HASH' && $result->{error} && $result->{error}->{desc}) {
         $error = "Agent error: $result->{error}->{desc}\n";
@@ -115,18 +106,14 @@ sub check_agent_error {
     return 1;
 }
 
-sub assert_agent_available {
-    my ($vmid, $conf) = @_;
-
+sub assert_agent_available($vmid, $conf) {
     die "No QEMU guest agent configured\n" if !defined($conf->{agent});
     die "VM $vmid is not running\n" if !PVE::QemuServer::Helpers::vm_running_locally($vmid);
     die "QEMU guest agent is not running\n" if !qga_check_running($vmid, 1);
 }
 
 # loads config, checks if available, executes command, checks for errors
-sub agent_cmd {
-    my ($vmid, $conf, $cmd, $params, $errormsg) = @_;
-
+sub agent_cmd($vmid, $conf, $cmd, $params, $errormsg) {
     assert_agent_available($vmid, $conf);
 
     my $res = PVE::QemuServer::Monitor::mon_cmd($vmid, "guest-$cmd", %$params);
@@ -135,9 +122,7 @@ sub agent_cmd {
     return $res;
 }
 
-sub qemu_exec {
-    my ($vmid, $conf, $input_data, $cmd) = @_;
-
+sub qemu_exec($vmid, $conf, $input_data, $cmd) {
     my $args = {
         'capture-output' => JSON::true,
     };
@@ -165,9 +150,7 @@ sub qemu_exec {
     return $res;
 }
 
-sub qemu_exec_status {
-    my ($vmid, $conf, $pid) = @_;
-
+sub qemu_exec_status($vmid, $conf, $pid) {
     my $res =
         agent_cmd($vmid, $conf, "exec-status", { pid => $pid }, "can't get exec status for '$pid'");
 
@@ -204,9 +187,7 @@ Does B<not> check whether the agent is actually running.
 
 =cut
 
-sub should_fs_freeze {
-    my ($conf) = @_;
-
+sub should_fs_freeze($conf) {
     my $agent = parse_guest_agent($conf);
     return 0 if !$agent->{enabled};
     return $agent->{'freeze-fs'} // 1;
@@ -235,9 +216,7 @@ the time the socket is blocked after a lost command is at most 10 minutes.
 
 =cut
 
-sub guest_fsfreeze {
-    my ($vmid) = @_;
-
+sub guest_fsfreeze($vmid) {
     my $timeout = 10 * 60;
 
     my $result = eval {
@@ -290,9 +269,7 @@ See C<$guest_fsfreeze> for more details.
 
 =cut
 
-sub guest_fsthaw {
-    my ($vmid) = @_;
-
+sub guest_fsthaw($vmid) {
     my $res = PVE::QemuServer::Monitor::mon_cmd($vmid, "guest-fsfreeze-thaw");
     check_agent_error($res, "unable to thaw guest filesystem");
 
