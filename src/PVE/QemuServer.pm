@@ -7959,7 +7959,7 @@ sub clone_disk {
             $dest_info->{'zero-initialized'} = 1 if $sparseinit;
             $dest_info->{vmid} = $newvmid if defined($newvmid);
             my $mirror_opts = {};
-            $mirror_opts->{'guest-agent'} = 1 if $qga;
+            $mirror_opts->{'guest-agent'} = $qga;
             $mirror_opts->{bwlimit} = $bwlimit if defined($bwlimit);
             PVE::QemuServer::BlockJob::mirror(
                 $source_info,

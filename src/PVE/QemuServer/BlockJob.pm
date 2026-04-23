@@ -167,13 +167,14 @@ sub monitor {
 
                 if ($qmp_peer->{type} eq 'qmp' && $vmiddst && $vmiddst != $qmp_peer->{id}) {
                     my $vmid = $qmp_peer->{id};
-                    my $should_fsfreeze = $qga && qga_check_running($vmid);
+                    my $freeze_enabled = PVE::QemuServer::Agent::should_fs_freeze($qga);
+                    my $should_fsfreeze = $freeze_enabled && qga_check_running($vmid);
                     if ($should_fsfreeze) {
                         print "issuing guest agent 'guest-fsfreeze-freeze' command\n";
                         eval { PVE::QemuServer::Agent::guest_fs_freeze($vmid); };
                         warn $@ if $@;
                     } else {
-                        if (!$qga) {
+                        if (!$freeze_enabled) {
                             print "skipping guest-agent 'guest-fsfreeze-freeze', disabled in VM"
                                 . " options\n";
                         } else {
@@ -435,8 +436,9 @@ original drive to use the new target.
 
 =over
 
-=item C<< $options->{'guest-agent'} >>: If the guest agent is configured for the VM. It will be used
-to freeze and thaw the filesystems for consistency when the target belongs to a different VM.
+=item C<< $options->{'guest-agent'} >>: The guest agent configuration of the VM, i.e. the 'agent'
+property string. If enabled by the configuration, freeze and thaw the filesystems for consistency
+when the target belongs to a different VM.
 
 =item C<< $options->{'bwlimit'} >>: The bandwidth limit to use for the mirroring operation, in
 KiB/s.
