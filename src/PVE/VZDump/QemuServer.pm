@@ -1098,20 +1098,14 @@ sub qga_fs_freeze {
         || !$self->{vm_was_running}
         || $self->{vm_was_paused};
 
-    my $conf = $self->{vmlist}->{$vmid};
+    my $agent_str = $self->{vmlist}->{$vmid}->{agent};
 
-    if (!PVE::QemuServer::Agent::get_qga_key($conf, 'enabled')) {
-        $self->loginfo("skipping guest-agent 'fs-freeze', agent not configured in VM options");
-        return;
-    }
-
-    if (!PVE::QemuServer::Agent::qga_check_running($vmid, 1)) {
-        $self->loginfo("skipping guest-agent 'fs-freeze', agent configured but not running?");
-        return;
-    }
-
-    if (!PVE::QemuServer::Agent::should_fs_freeze($conf->{agent})) {
-        $self->loginfo("skipping guest-agent 'fs-freeze', disabled in VM options");
+    my $logfunc = sub {
+        my ($msg, $level) = @_; # Note that msg and level are swapped intentionally here.
+        $level //= 'info';
+        $self->log($level, $msg);
+    };
+    if (!PVE::QemuServer::Agent::guest_fs_freeze_applicable($agent_str, $vmid, $logfunc)) {
         return;
     }
 

@@ -167,20 +167,13 @@ sub monitor {
 
                 if ($qmp_peer->{type} eq 'qmp' && $vmiddst && $vmiddst != $qmp_peer->{id}) {
                     my $vmid = $qmp_peer->{id};
-                    my $freeze_enabled = PVE::QemuServer::Agent::should_fs_freeze($qga);
-                    my $should_fsfreeze = $freeze_enabled && qga_check_running($vmid);
+                    my $should_fsfreeze =
+                        PVE::QemuServer::Agent::guest_fs_freeze_applicable($qga, $vmid);
                     if ($should_fsfreeze) {
                         print "issuing guest agent 'guest-fsfreeze-freeze' command\n";
                         eval { PVE::QemuServer::Agent::guest_fs_freeze($vmid); };
                         warn $@ if $@;
                     } else {
-                        if (!$freeze_enabled) {
-                            print "skipping guest-agent 'guest-fsfreeze-freeze', disabled in VM"
-                                . " options\n";
-                        } else {
-                            print "skipping guest agent 'guest-fsfreeze-freeze' command: the"
-                                . " agent is not running inside of the guest\n";
-                        }
                         print "suspend vm\n";
                         eval { PVE::QemuServer::RunState::vm_suspend($vmid, 1); };
                         warn $@ if $@;

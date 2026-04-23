@@ -276,4 +276,35 @@ sub guest_fs_thaw($vmid) {
     return;
 }
 
+=head3 guest_fs_freeze_applicable
+
+    if (guest_fs_freeze_applicable($agent_str, $vmid, $logfunc)) {
+        guest_fs_freeze($vmid);
+    }
+
+Check if the file systems of the guest C<$vmid> should be frozen according to the guest agent
+property string C<$agent_str> and if freezing is actionable in practice, i.e. guest agent running.
+Logs a message if skipped. Using a custom log function via C<$logfunc> is supported. Otherwise,
+C<print()> and C<warn()> will be used.
+
+=cut
+
+sub guest_fs_freeze_applicable($agent_str, $vmid, $logfunc = undef) {
+    $logfunc //= sub($msg, $level = 'info') {
+        $level eq 'info' ? print("$msg\n") : warn("$msg\n");
+    };
+
+    if (!should_fs_freeze($agent_str)) {
+        $logfunc->("skipping guest filesystem freeze - disabled in VM options");
+        return;
+    }
+
+    if (!qga_check_running($vmid, 1)) {
+        $logfunc->("skipping guest filesystem freeze - agent configured but not running?");
+        return;
+    }
+
+    return 1;
+}
+
 1;
