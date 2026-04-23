@@ -187,8 +187,8 @@ Does B<not> check whether the agent is actually running.
 
 =cut
 
-sub should_fs_freeze($conf) {
-    my $agent = parse_guest_agent($conf->{agent});
+sub should_fs_freeze($agent_str) {
+    my $agent = parse_guest_agent($agent_str);
     return 0 if !$agent->{enabled};
     return $agent->{'freeze-fs'} // 1;
 }

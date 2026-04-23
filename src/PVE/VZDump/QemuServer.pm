@@ -1110,7 +1110,7 @@ sub qga_fs_freeze {
         return;
     }
 
-    if (!PVE::QemuServer::Agent::should_fs_freeze($conf)) {
+    if (!PVE::QemuServer::Agent::should_fs_freeze($conf->{agent})) {
         $self->loginfo("skipping guest-agent 'fs-freeze', disabled in VM options");
         return;
     }
