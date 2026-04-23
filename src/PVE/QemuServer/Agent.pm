@@ -276,6 +276,23 @@ sub guest_fs_thaw($vmid) {
     return;
 }
 
+=head3 guest_fs_is_frozen
+
+    if (guest_fs_is_frozen($vmid)) {
+        print "skipping guest fs freeze - already frozen\n";
+    }
+
+Check if the file systems of the guest C<$vmid> is currently frozen.
+
+=cut
+
+sub guest_fs_is_frozen($vmid) {
+    my $status = PVE::QemuServer::Monitor::mon_cmd($vmid, "guest-fsfreeze-status");
+    check_agent_error($status, "unable to check guest filesystem freeze status");
+
+    return $status eq 'frozen';
+}
+
 =head3 guest_fs_freeze_applicable
 
     if (guest_fs_freeze_applicable($agent_str, $vmid, $logfunc)) {
@@ -283,9 +300,9 @@ sub guest_fs_thaw($vmid) {
     }
 
 Check if the file systems of the guest C<$vmid> should be frozen according to the guest agent
-property string C<$agent_str> and if freezing is actionable in practice, i.e. guest agent running.
-Logs a message if skipped. Using a custom log function via C<$logfunc> is supported. Otherwise,
-C<print()> and C<warn()> will be used.
+property string C<$agent_str> and if freezing is actionable in practice, i.e. guest agent running
+and file system not already frozen. Logs a message if skipped. Using a custom log function via
+C<$logfunc> is supported. Otherwise, C<print()> and C<warn()> will be used.
 
 =cut
 
@@ -301,6 +318,14 @@ sub guest_fs_freeze_applicable($agent_str, $vmid, $logfunc = undef) {
 
     if (!qga_check_running($vmid, 1)) {
         $logfunc->("skipping guest filesystem freeze - agent configured but not running?");
+        return;
+    }
+
+    my $frozen = eval { PVE::QemuServer::Agent::guest_fs_is_frozen($vmid) };
+    $logfunc->("unable to check guest fs freeze status - $@", 'warn') if $@;
+
+    if ($frozen) {
+        $logfunc->("skipping guest filesystem freeze - already frozen");
         return;
     }
 
