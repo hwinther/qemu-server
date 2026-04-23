@@ -3417,7 +3417,7 @@ sub config_to_command {
 
     push @$cmd, '-k', $conf->{keyboard} if defined($conf->{keyboard});
 
-    my $guest_agent = parse_guest_agent($conf);
+    my $guest_agent = parse_guest_agent($conf->{agent});
 
     if ($guest_agent->{enabled}) {
         my $qgasocket = PVE::QemuServer::Helpers::qmp_socket(
@@ -5159,8 +5159,8 @@ sub vmconfig_update_agent {
 
     my $hotplug_options = { fstrim_cloned_disks => 1 };
 
-    my $old_agent = parse_guest_agent($conf);
-    my $agent = parse_guest_agent({ $opt => $value });
+    my $old_agent = parse_guest_agent($conf->{agent});
+    my $agent = parse_guest_agent($value);
 
     for my $option (keys %$agent) { # added/changed options
         next if defined($hotplug_options->{$option});

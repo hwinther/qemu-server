@@ -61,10 +61,10 @@ our $agent_fmt = {
     },
 };
 
-sub parse_guest_agent($conf) {
-    return {} if !defined($conf->{agent});
+sub parse_guest_agent($value) {
+    return {} if !defined($value);
 
-    my $res = eval { PVE::JSONSchema::parse_property_string($agent_fmt, $conf->{agent}) };
+    my $res = eval { PVE::JSONSchema::parse_property_string($agent_fmt, $value) };
     warn $@ if $@;
 
     # if the agent is disabled ignore the other potentially set properties
@@ -75,7 +75,7 @@ sub parse_guest_agent($conf) {
 sub get_qga_key($conf, $key) {
     return undef if !defined($conf->{agent});
 
-    my $agent = parse_guest_agent($conf);
+    my $agent = parse_guest_agent($conf->{agent});
     return $agent->{$key};
 }
 
@@ -188,7 +188,7 @@ Does B<not> check whether the agent is actually running.
 =cut
 
 sub should_fs_freeze($conf) {
-    my $agent = parse_guest_agent($conf);
+    my $agent = parse_guest_agent($conf->{agent});
     return 0 if !$agent->{enabled};
     return $agent->{'freeze-fs'} // 1;
 }
