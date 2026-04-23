@@ -1116,7 +1116,7 @@ sub qga_fs_freeze {
     }
 
     $self->loginfo("issuing guest-agent 'fs-freeze' command");
-    eval { PVE::QemuServer::Agent::guest_fsfreeze($vmid); };
+    eval { PVE::QemuServer::Agent::guest_fs_freeze($vmid); };
     $self->logerr($@) if $@;
 
     return 1; # even on error, ensure we always thaw again
@@ -1127,7 +1127,7 @@ sub qga_fs_thaw {
     my ($self, $vmid) = @_;
 
     $self->loginfo("issuing guest-agent 'fs-thaw' command");
-    eval { PVE::QemuServer::Agent::guest_fsthaw($vmid); };
+    eval { PVE::QemuServer::Agent::guest_fs_thaw($vmid); };
     $self->logerr($@) if $@;
 }
 

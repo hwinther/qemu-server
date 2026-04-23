@@ -193,9 +193,9 @@ sub should_fs_freeze($conf) {
     return $agent->{'freeze-fs'} // 1;
 }
 
-=head3 guest_fsfreeze
+=head3 guest_fs_freeze
 
-    guest_fsfreeze($vmid);
+    guest_fs_freeze($vmid);
 
 Freeze the file systems of the guest C<$vmid>. Check that the guest agent is enabled and running
 before calling this function. Dies if the file systems cannot be frozen.
@@ -216,7 +216,7 @@ the time the socket is blocked after a lost command is at most 10 minutes.
 
 =cut
 
-sub guest_fsfreeze($vmid) {
+sub guest_fs_freeze($vmid) {
     my $timeout = 10 * 60;
 
     my $result = eval {
@@ -259,17 +259,17 @@ sub guest_fsfreeze($vmid) {
     die "unable to freeze guest fs - unexpected status '$status'\n" if $status ne 'frozen';
 }
 
-=head3 guest_fsthaw
+=head3 guest_fs_thaw
 
-    guest_fsthaw($vmid);
+    guest_fs_thaw($vmid);
 
 Thaws the file systems of the guest C<$vmid>. Dies if the file systems cannot be thawed.
 
-See C<$guest_fsfreeze> for more details.
+See C<guest_fs_freeze()> for more details.
 
 =cut
 
-sub guest_fsthaw($vmid) {
+sub guest_fs_thaw($vmid) {
     my $res = PVE::QemuServer::Monitor::mon_cmd($vmid, "guest-fsfreeze-thaw");
     check_agent_error($res, "unable to thaw guest filesystem");
 

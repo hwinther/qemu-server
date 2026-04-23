@@ -108,7 +108,7 @@ sub cmd {
         } elsif ($cmd->{execute} =~ m/^(eject|change)/) {
             $timeout = 60; # note: cdrom mount command is slow
         } elsif ($cmd->{execute} eq 'guest-fsfreeze-freeze') {
-            # consider using the guest_fsfreeze() helper in Agent.pm
+            # consider using the guest_fs_freeze() helper in Agent.pm
             #
             # freeze syncs all guest FS, if we kill it it stays in an unfreezable
             # locked state with high probability, so use an generous timeout
