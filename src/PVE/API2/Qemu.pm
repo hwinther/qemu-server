@@ -2969,7 +2969,7 @@ __PACKAGE__->register_method({
         my $ticket = PVE::AccessControl::assemble_vnc_ticket($authuser, $authpath, $port);
         my $password;
         if ($param->{'generate-password'} || !defined($serial) || $param->{websocket}) {
-            $password = PVE::Ticket::generate_vnc_password(8);
+            $password = PVE::Ticket::generate_vnc_password();
             # FIXME: MAJOR VERSION: Avoid this hack, require using explicit 'password' return value
             $ticket = "${password}:${ticket}";
         } # else authentication happens via ticket only, not via password in VNC protocol
