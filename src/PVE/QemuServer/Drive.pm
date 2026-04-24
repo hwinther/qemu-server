@@ -13,7 +13,7 @@ use PVE::Storage;
 use PVE::Storage::Common;
 use PVE::JSONSchema qw(get_standard_option);
 
-use PVE::QemuServer::Monitor qw(qsd_peer vm_qmp_peer);
+use PVE::QemuServer::Monitor qw(qsd_qmp_peer vm_qmp_peer);
 
 use base qw(Exporter);
 
@@ -1169,7 +1169,7 @@ sub drive_uses_qsd_fuse {
 sub drive_qmp_peer {
     my ($storecfg, $vmid, $drive) = @_;
 
-    return drive_uses_qsd_fuse($storecfg, $drive) ? qsd_peer($vmid) : vm_qmp_peer($vmid);
+    return drive_uses_qsd_fuse($storecfg, $drive) ? qsd_qmp_peer($vmid) : vm_qmp_peer($vmid);
 }
 
 1;

@@ -11,7 +11,7 @@ use PVE::Tools;
 
 use PVE::QemuServer::Blockdev;
 use PVE::QemuServer::Helpers;
-use PVE::QemuServer::Monitor qw(qsd_peer);
+use PVE::QemuServer::Monitor qw(qsd_qmp_peer);
 
 =head3 start
 
@@ -25,7 +25,7 @@ sub start($id) {
     # If something is still mounted, that could block the new instance, try to clean up first.
     PVE::QemuServer::Helpers::qsd_fuse_export_cleanup_files($id);
 
-    my $qmp_socket_path = PVE::QemuServer::Helpers::qmp_socket(qsd_peer($id));
+    my $qmp_socket_path = PVE::QemuServer::Helpers::qmp_socket(qsd_qmp_peer($id));
     my $pidfile = PVE::QemuServer::Helpers::qsd_pidfile_name($id);
 
     my $cmd = [
@@ -131,7 +131,7 @@ sub quit($id) {
     }
 
     unlink PVE::QemuServer::Helpers::qsd_pidfile_name($id);
-    unlink PVE::QemuServer::Helpers::qmp_socket(qsd_peer($id));
+    unlink PVE::QemuServer::Helpers::qmp_socket(qsd_qmp_peer($id));
 
     PVE::QemuServer::Helpers::qsd_fuse_export_cleanup_files($id);
 

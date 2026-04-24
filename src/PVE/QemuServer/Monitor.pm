@@ -11,7 +11,7 @@ use base 'Exporter';
 our @EXPORT_OK = qw(
     mon_cmd
     qmp_cmd
-    qsd_peer
+    qsd_qmp_peer
     vm_qmp_peer
 );
 
@@ -110,7 +110,7 @@ sub vm_qmp_peer {
     return { name => "VM $vmid", id => $vmid, type => 'qmp' };
 }
 
-sub qsd_peer {
+sub qsd_qmp_peer {
     my ($id) = @_;
 
     return { name => "QEMU storage daemon $id", id => $id, type => 'qsd' };
@@ -119,7 +119,7 @@ sub qsd_peer {
 sub qsd_cmd {
     my ($id, $execute, %params) = @_;
 
-    return qmp_cmd(qsd_peer($id), $execute, %params);
+    return qmp_cmd(qsd_qmp_peer($id), $execute, %params);
 }
 
 sub mon_cmd {
