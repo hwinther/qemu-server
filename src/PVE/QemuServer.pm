@@ -82,7 +82,7 @@ use PVE::QemuServer::DriveDevice qw(print_drivedevice_full scsihw_infos);
 use PVE::QemuServer::Machine;
 use PVE::QemuServer::Memory qw(get_current_memory);
 use PVE::QemuServer::MetaInfo;
-use PVE::QemuServer::Monitor qw(mon_cmd vm_qmp_peer);
+use PVE::QemuServer::Monitor qw(mon_cmd qmp_cmd vm_qmp_peer);
 use PVE::QemuServer::Network;
 use PVE::QemuServer::OVMF;
 use PVE::QemuServer::PCI qw(print_pci_addr print_pcie_addr print_pcie_root_port parse_hostpci);
@@ -4355,7 +4355,8 @@ sub qemu_volume_snapshot {
 
     if ($do_snapshots_type eq 'internal') {
         print "internal qemu snapshot\n";
-        mon_cmd($vmid, 'blockdev-snapshot-internal-sync', device => $deviceid, name => $snap);
+        my $qmp_peer = PVE::QemuServer::Drive::drive_qmp_peer($storecfg, $vmid, $drive);
+        qmp_cmd($qmp_peer, 'blockdev-snapshot-internal-sync', device => $deviceid, name => $snap);
     } elsif ($do_snapshots_type eq 'external') {
         my $machine_version = PVE::QemuServer::Machine::get_current_qemu_machine($vmid);
         if (!PVE::QemuServer::Machine::is_machine_version_at_least($machine_version, 10, 0)) {
@@ -4368,14 +4369,9 @@ sub qemu_volume_snapshot {
         print "external qemu snapshot\n";
         my $snapshots = PVE::Storage::volume_snapshot_info($storecfg, $volid);
         my $parent_snap = $snapshots->{'current'}->{parent};
+        my $qmp_peer = PVE::QemuServer::Drive::drive_qmp_peer($storecfg, $vmid, $drive);
         PVE::QemuServer::VolumeChain::blockdev_external_snapshot(
-            $storecfg,
-            vm_qmp_peer($vmid),
-            $machine_version,
-            $deviceid,
-            $drive,
-            $snap,
-            $parent_snap,
+            $storecfg, $qmp_peer, $machine_version, $deviceid, $drive, $snap, $parent_snap,
         );
     } elsif ($do_snapshots_type eq 'storage') {
         PVE::Storage::volume_snapshot($storecfg, $volid, $snap);
@@ -4403,8 +4399,9 @@ sub qemu_volume_snapshot_delete {
     my $do_snapshots_type = do_snapshots_type($storecfg, $volid, $attached_deviceid, $running);
 
     if ($do_snapshots_type eq 'internal') {
-        mon_cmd(
-            $vmid,
+        my $qmp_peer = PVE::QemuServer::Drive::drive_qmp_peer($storecfg, $vmid, $drive);
+        qmp_cmd(
+            $qmp_peer,
             'blockdev-snapshot-delete-internal-sync',
             device => $attached_deviceid,
             name => $snap,
@@ -4428,13 +4425,15 @@ sub qemu_volume_snapshot_delete {
         my $parentsnap = $snapshots->{$snap}->{parent};
         my $childsnap = $snapshots->{$snap}->{child};
 
+        my $qmp_peer = PVE::QemuServer::Drive::drive_qmp_peer($storecfg, $vmid, $drive);
+
         # if we delete the first snasphot, we commit because the first snapshot original base image, it should be big.
         # improve-me: if firstsnap > child : commit, if firstsnap < child do a stream.
         if (!$parentsnap) {
             print "delete first snapshot $snap\n";
             PVE::QemuServer::VolumeChain::blockdev_commit(
                 $storecfg,
-                vm_qmp_peer($vmid),
+                $qmp_peer,
                 $machine_version,
                 $attached_deviceid,
                 $drive,
@@ -4446,7 +4445,7 @@ sub qemu_volume_snapshot_delete {
 
             PVE::QemuServer::VolumeChain::blockdev_replace(
                 $storecfg,
-                vm_qmp_peer($vmid),
+                $qmp_peer,
                 $machine_version,
                 $attached_deviceid,
                 $drive,
@@ -4459,7 +4458,7 @@ sub qemu_volume_snapshot_delete {
             print "stream intermediate snapshot $snap to $childsnap\n";
             PVE::QemuServer::VolumeChain::blockdev_stream(
                 $storecfg,
-                vm_qmp_peer($vmid),
+                $qmp_peer,
                 $machine_version,
                 $attached_deviceid,
                 $drive,
@@ -7792,9 +7791,6 @@ sub restore_tar_archive {
 
 sub do_snapshots_type {
     my ($storecfg, $volid, $deviceid, $running) = @_;
-
-    #always use storage snapshot for tpmstate
-    return 'storage' if $deviceid && $deviceid =~ m/tpmstate0/;
 
     #we use storage snapshot if vm is not running or if disk is unused;
     return 'storage' if !$running || !$deviceid;
