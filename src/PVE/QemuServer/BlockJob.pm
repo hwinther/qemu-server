@@ -13,7 +13,7 @@ use PVE::Storage;
 use PVE::QemuServer::Agent qw(qga_check_running);
 use PVE::QemuServer::Blockdev;
 use PVE::QemuServer::Drive qw(checked_volume_format);
-use PVE::QemuServer::Monitor qw(mon_cmd vm_qmp_peer);
+use PVE::QemuServer::Monitor qw(mon_cmd qmp_cmd vm_qmp_peer);
 use PVE::QemuServer::RunState;
 
 # If the job was started with auto-dismiss=false, it's necessary to dismiss it manually. Using this
@@ -23,9 +23,9 @@ use PVE::QemuServer::RunState;
 # $job is the information about the job recorded on the PVE-side.
 # A block node $job->{'detach-node-name'} will be detached if present.
 sub qemu_handle_concluded_blockjob {
-    my ($vmid, $job_id, $qmp_info, $job) = @_;
+    my ($qmp_peer, $job_id, $qmp_info, $job) = @_;
 
-    eval { mon_cmd($vmid, 'job-dismiss', id => $job_id); };
+    eval { qmp_cmd($qmp_peer, 'job-dismiss', id => $job_id); };
     log_warn("$job_id: failed to dismiss job - $@") if $@;
 
     # If there was an error or if the job was cancelled, always detach the target. This is correct
@@ -34,7 +34,7 @@ sub qemu_handle_concluded_blockjob {
     $job->{'detach-node-name'} = $job->{'target-node-name'} if $qmp_info->{error} || $job->{cancel};
 
     if (my $node_name = $job->{'detach-node-name'}) {
-        eval { PVE::QemuServer::Blockdev::detach(vm_qmp_peer($vmid), $node_name); };
+        eval { PVE::QemuServer::Blockdev::detach($qmp_peer, $node_name); };
         log_warn($@) if $@;
     }
 
@@ -61,7 +61,7 @@ sub qemu_blockjobs_cancel {
         foreach my $job (keys %$jobs) {
             my $info = $running_jobs->{$job};
             eval {
-                qemu_handle_concluded_blockjob($vmid, $job, $info, $jobs->{$job})
+                qemu_handle_concluded_blockjob(vm_qmp_peer($vmid), $job, $info, $jobs->{$job})
                     if $info && $info->{status} eq 'concluded';
             };
             log_warn($@) if $@; # only warn and proceed with canceling other jobs
@@ -120,8 +120,11 @@ sub monitor {
 
                 die "$job_id: '$op' has been cancelled\n" if !defined($job);
 
-                qemu_handle_concluded_blockjob($vmid, $job_id, $job, $jobs->{$job_id})
-                    if $job && $job->{status} eq 'concluded';
+                if ($job && $job->{status} eq 'concluded') {
+                    qemu_handle_concluded_blockjob(
+                        vm_qmp_peer($vmid), $job_id, $job, $jobs->{$job_id},
+                    );
+                }
 
                 my $busy = $job->{busy};
                 my $ready = $job->{ready};
@@ -353,7 +356,7 @@ sub qemu_drive_mirror_switch_to_active_mode {
 
             my $info = $running_jobs->{$job};
             if ($info->{status} eq 'concluded') {
-                qemu_handle_concluded_blockjob($vmid, $job, $info, $jobs->{$job});
+                qemu_handle_concluded_blockjob(vm_qmp_peer($vmid), $job, $info, $jobs->{$job});
                 # The 'concluded' state should occur here if and only if the job failed, so the
                 # 'die' below should be unreachable, but play it safe.
                 die "$job: expected job to have failed, but no error was set\n";
