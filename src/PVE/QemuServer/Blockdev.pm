@@ -170,17 +170,17 @@ sub get_node_name_below_throttle {
 
     my $block_info = get_block_info($vmid);
     my $drive_id = $device_id =~ s/^drive-//r;
-    my $inserted = $block_info->{$drive_id}->{inserted}
+    my $top = $block_info->{$drive_id}->{inserted}
         or die "no block node inserted for drive '$drive_id'\n";
 
-    if ($inserted->{drv} ne 'throttle') {
-        die "$device_id: unexpected top node $inserted->{'node-name'} ($inserted->{drv})\n"
+    if ($top->{drv} ne 'throttle') {
+        die "$device_id: unexpected top node $top->{'node-name'} ($top->{drv})\n"
             if $assert_top_is_throttle;
         # before the switch to -blockdev, the top node was not throttle
-        return $inserted->{'node-name'};
+        return $top->{'node-name'};
     }
 
-    my $children = { map { $_->{child} => $_ } $inserted->{children}->@* };
+    my $children = { map { $_->{child} => $_ } $top->{children}->@* };
 
     if (my $node_name = $children->{file}->{'node-name'}) {
         return $node_name;
