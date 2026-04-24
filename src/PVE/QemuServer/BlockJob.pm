@@ -34,7 +34,7 @@ sub qemu_handle_concluded_blockjob {
     $job->{'detach-node-name'} = $job->{'target-node-name'} if $qmp_info->{error} || $job->{cancel};
 
     if (my $node_name = $job->{'detach-node-name'}) {
-        eval { PVE::QemuServer::Blockdev::detach($vmid, $node_name); };
+        eval { PVE::QemuServer::Blockdev::detach(vm_qmp_peer($vmid), $node_name); };
         log_warn($@) if $@;
     }
 
@@ -509,7 +509,7 @@ sub blockdev_mirror {
     if (my $err = $@) {
         eval { qemu_blockjobs_cancel($vmid, $jobs) };
         log_warn("unable to cancel block jobs - $@");
-        eval { PVE::QemuServer::Blockdev::detach($vmid, $target_node_name); };
+        eval { PVE::QemuServer::Blockdev::detach(vm_qmp_peer($vmid), $target_node_name); };
         log_warn("unable to delete blockdev '$target_node_name' - $@");
         die "error starting blockdev mirrror - $err";
     }

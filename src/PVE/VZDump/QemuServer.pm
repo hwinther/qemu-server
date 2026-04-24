@@ -631,7 +631,7 @@ my sub detach_fleecing_images {
     for my $di ($disks->@*) {
         if (my $volid = $di->{'fleece-volid'}) {
             my $node_name = "$di->{qmdevice}-fleecing";
-            eval { PVE::QemuServer::Blockdev::detach($vmid, $node_name) };
+            eval { PVE::QemuServer::Blockdev::detach(vm_qmp_peer($vmid), $node_name) };
         }
     }
 }

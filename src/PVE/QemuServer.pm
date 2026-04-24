@@ -4089,7 +4089,7 @@ sub qemu_drivedel {
 
     # for the switch to -blockdev
     if (PVE::QemuServer::Machine::is_machine_version_at_least($machine_type, 10, 0)) {
-        PVE::QemuServer::Blockdev::detach($vmid, "drive-$deviceid");
+        PVE::QemuServer::Blockdev::detach(vm_qmp_peer($vmid), "drive-$deviceid");
         return 1;
     } else {
         my $ret = PVE::QemuServer::Monitor::hmp_cmd($vmid, "drive_del drive-$deviceid", 10 * 60);
@@ -7321,7 +7321,7 @@ sub pbs_live_restore {
             . " to disconnect from Proxmox Backup Server\n";
 
         for my $ds (sort keys %$restored_disks) {
-            PVE::QemuServer::Blockdev::detach($vmid, "$ds-pbs");
+            PVE::QemuServer::Blockdev::detach(vm_qmp_peer($vmid), "$ds-pbs");
         }
 
         close($qmeventd_fd);
@@ -7440,7 +7440,7 @@ sub live_import_from_files {
         print "restore-drive jobs finished successfully, removing all tracking block devices\n";
 
         for my $ds (sort keys %$live_restore_backing) {
-            PVE::QemuServer::Blockdev::detach($vmid, "drive-$ds-restore");
+            PVE::QemuServer::Blockdev::detach(vm_qmp_peer($vmid), "drive-$ds-restore");
         }
 
         close($qmeventd_fd);

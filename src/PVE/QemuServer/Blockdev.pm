@@ -637,16 +637,16 @@ sub attach {
 
 =head3 detach
 
-    detach($vmid, $node_name);
+    detach($qmp_peer, $node_name);
 
-Detach the block device C<$node_name> from the VM C<$vmid>. Also removes associated child block
-nodes.
+Detach the block device C<$node_name> from the QMP peer C<$qmp_peer>. Also removes associated child
+block nodes.
 
 Parameters:
 
 =over
 
-=item C<$vmid>: The ID of the virtual machine.
+=item C<$qmp_peer>: QMP peer information.
 
 =item C<$node_name>: The node name identifying the block node in QEMU.
 
@@ -655,11 +655,11 @@ Parameters:
 =cut
 
 sub detach {
-    my ($vmid, $node_name) = @_;
+    my ($qmp_peer, $node_name) = @_;
 
     die "Blockdev::detach - no node name\n" if !$node_name;
 
-    my $block_info = mon_cmd($vmid, "query-named-block-nodes");
+    my $block_info = qmp_cmd($qmp_peer, "query-named-block-nodes");
     $block_info = { map { $_->{'node-name'} => $_ } $block_info->@* };
 
     my $remove_throttle_group_id;
@@ -670,7 +670,7 @@ sub detach {
     while ($node_name) {
         last if !$block_info->{$node_name}; # already gone
 
-        my $res = mon_cmd($vmid, 'blockdev-del', 'node-name' => "$node_name", noerr => 1);
+        my $res = qmp_cmd($qmp_peer, 'blockdev-del', 'node-name' => "$node_name", noerr => 1);
         if (my $err = $res->{error}) {
             last if $err =~ m/Failed to find node with node-name/; # already gone
             die "deleting blockdev '$node_name' failed : $err\n";
@@ -684,7 +684,7 @@ sub detach {
     }
 
     if ($remove_throttle_group_id) {
-        eval { mon_cmd($vmid, 'object-del', id => $remove_throttle_group_id); };
+        eval { qmp_cmd($qmp_peer, 'object-del', id => $remove_throttle_group_id); };
         die "removing throttle group failed - $@\n" if $@;
     }
 
@@ -694,7 +694,7 @@ sub detach {
 sub detach_tpm_backup_node {
     my ($vmid) = @_;
 
-    detach($vmid, "drive-tpmstate0-backup");
+    detach(vm_qmp_peer($vmid), "drive-tpmstate0-backup");
 }
 
 sub detach_fleecing_block_nodes {
@@ -706,7 +706,7 @@ sub detach_fleecing_block_nodes {
         next if !is_fleecing_top_node($node_name);
 
         $log_func->('info', "detaching (old) fleecing image '$node_name'");
-        eval { detach($vmid, $node_name) };
+        eval { detach(vm_qmp_peer($vmid), $node_name) };
         $log_func->('warn', "error detaching (old) fleecing image '$node_name' - $@") if $@;
     }
 }
@@ -746,7 +746,7 @@ my sub blockdev_change_medium {
     # force eject if locked
     mon_cmd($vmid, "blockdev-open-tray", force => JSON::true, id => "$qdev_id");
     mon_cmd($vmid, "blockdev-remove-medium", id => "$qdev_id");
-    detach($vmid, "drive-$qdev_id");
+    detach(vm_qmp_peer($vmid), "drive-$qdev_id");
 
     return if $drive->{file} eq 'none';
 

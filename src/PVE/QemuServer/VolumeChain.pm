@@ -59,7 +59,7 @@ sub blockdev_external_snapshot {
 sub blockdev_delete {
     my ($storecfg, $vmid, $drive, $file_blockdev, $fmt_blockdev, $snap) = @_;
 
-    eval { PVE::QemuServer::Blockdev::detach($vmid, $fmt_blockdev->{'node-name'}); };
+    eval { PVE::QemuServer::Blockdev::detach(vm_qmp_peer($vmid), $fmt_blockdev->{'node-name'}); };
     warn "detaching block node for $file_blockdev->{filename} failed - $@" if $@;
 
     #delete the file (don't use vdisk_free as we don't want to delete all snapshot chain)
@@ -181,7 +181,7 @@ sub blockdev_replace {
     }
 
     # delete old file|fmt nodes
-    eval { PVE::QemuServer::Blockdev::detach($vmid, $src_blockdev_name); };
+    eval { PVE::QemuServer::Blockdev::detach(vm_qmp_peer($vmid), $src_blockdev_name); };
     warn "detaching block node for $src_snap failed - $@" if $@;
 }
 
