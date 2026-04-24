@@ -2832,12 +2832,11 @@ sub start_swtpm {
     my $tpm = parse_drive("tpmstate0", $tpmdrive);
     my ($storeid) = PVE::Storage::parse_volume_id($tpm->{file}, 1);
     if ($storeid) {
-        my $format = checked_volume_format($storecfg, $tpm->{file});
-        if ($format eq 'raw') {
-            $state = PVE::Storage::map_volume($storecfg, $tpm->{file});
-        } else {
+        if (PVE::QemuServer::Drive::drive_uses_qsd_fuse($storecfg, $tpm)) {
             PVE::QemuServer::QSD::start($vmid);
             $state = PVE::QemuServer::QSD::add_fuse_export($vmid, $tpm, 'tpmstate0');
+        } else {
+            $state = PVE::Storage::map_volume($storecfg, $tpm->{file});
         }
     } else {
         $state = $tpm->{file};

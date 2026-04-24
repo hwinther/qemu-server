@@ -1152,4 +1152,16 @@ sub detect_zeroes_cmdline_option {
     return 'on';
 }
 
+sub drive_uses_qsd_fuse {
+    my ($storecfg, $drive) = @_;
+
+    if ($drive->{interface} eq 'tpmstate') {
+        my ($storeid) = PVE::Storage::parse_volume_id($drive->{file}, 1);
+        my $format = checked_volume_format($storecfg, $drive->{file});
+        return $storeid && $format ne 'raw';
+    }
+
+    return;
+}
+
 1;
