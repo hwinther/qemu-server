@@ -4369,7 +4369,13 @@ sub qemu_volume_snapshot {
         my $snapshots = PVE::Storage::volume_snapshot_info($storecfg, $volid);
         my $parent_snap = $snapshots->{'current'}->{parent};
         PVE::QemuServer::VolumeChain::blockdev_external_snapshot(
-            $storecfg, $vmid, $machine_version, $deviceid, $drive, $snap, $parent_snap,
+            $storecfg,
+            vm_qmp_peer($vmid),
+            $machine_version,
+            $deviceid,
+            $drive,
+            $snap,
+            $parent_snap,
         );
     } elsif ($do_snapshots_type eq 'storage') {
         PVE::Storage::volume_snapshot($storecfg, $volid, $snap);

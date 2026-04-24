@@ -14,7 +14,7 @@ use PVE::QemuServer::Drive;
 use PVE::QemuServer::Monitor qw(mon_cmd qmp_cmd vm_qmp_peer);
 
 sub blockdev_external_snapshot {
-    my ($storecfg, $vmid, $machine_version, $deviceid, $drive, $snap, $parent_snap) = @_;
+    my ($storecfg, $qmp_peer, $machine_version, $deviceid, $drive, $snap, $parent_snap) = @_;
 
     print "Creating a new current volume with $snap as backing snap\n";
 
@@ -26,7 +26,7 @@ sub blockdev_external_snapshot {
     #reopen current to snap
     blockdev_replace(
         $storecfg,
-        vm_qmp_peer($vmid),
+        $qmp_peer,
         $machine_version,
         $deviceid,
         $drive,
@@ -53,11 +53,11 @@ sub blockdev_external_snapshot {
     #backing need to be forced to undef in blockdev, to avoid reopen of backing-file on blockdev-add
     $new_fmt_blockdev->{backing} = undef;
 
-    mon_cmd($vmid, 'blockdev-add', %$new_fmt_blockdev);
+    qmp_cmd($qmp_peer, 'blockdev-add', %$new_fmt_blockdev);
 
     print "blockdev-snapshot: reopen current with $snap backing image\n";
-    mon_cmd(
-        $vmid, 'blockdev-snapshot',
+    qmp_cmd(
+        $qmp_peer, 'blockdev-snapshot',
         node => $snap_fmt_blockdev->{'node-name'},
         overlay => $new_fmt_blockdev->{'node-name'},
     );
