@@ -82,7 +82,7 @@ use PVE::QemuServer::DriveDevice qw(print_drivedevice_full scsihw_infos);
 use PVE::QemuServer::Machine;
 use PVE::QemuServer::Memory qw(get_current_memory);
 use PVE::QemuServer::MetaInfo;
-use PVE::QemuServer::Monitor qw(mon_cmd);
+use PVE::QemuServer::Monitor qw(mon_cmd vm_qmp_peer);
 use PVE::QemuServer::Network;
 use PVE::QemuServer::OVMF;
 use PVE::QemuServer::PCI qw(print_pci_addr print_pcie_addr print_pcie_root_port parse_hostpci);
@@ -2711,7 +2711,7 @@ sub vmstatus {
     my $statuscb = sub {
         my ($vmid, $resp) = @_;
 
-        my $qmp_peer = { name => "VM $vmid", id => $vmid, type => 'qmp' };
+        my $qmp_peer = vm_qmp_peer($vmid);
 
         $qmpclient->queue_cmd($qmp_peer, $proxmox_support_cb, 'query-proxmox-support');
         $qmpclient->queue_cmd($qmp_peer, $blockstatscb, 'query-blockstats');
@@ -2733,8 +2733,7 @@ sub vmstatus {
     foreach my $vmid (keys %$list) {
         next if $opt_vmid && ($vmid ne $opt_vmid);
         next if !$res->{$vmid}->{pid}; # not running
-        my $qmp_peer = { name => "VM $vmid", id => $vmid, type => 'qmp' };
-        $qmpclient->queue_cmd($qmp_peer, $statuscb, 'query-status');
+        $qmpclient->queue_cmd(vm_qmp_peer($vmid), $statuscb, 'query-status');
     }
 
     $qmpclient->queue_execute(undef, 2);
@@ -3189,8 +3188,7 @@ sub config_to_command {
 
     my $use_virtio = 0;
 
-    my $qmpsocket =
-        PVE::QemuServer::Helpers::qmp_socket({ name => "VM $vmid", id => $vmid, type => 'qmp' });
+    my $qmpsocket = PVE::QemuServer::Helpers::qmp_socket(vm_qmp_peer($vmid));
     push @$cmd, '-chardev', "socket,id=qmp,path=$qmpsocket,server=on,wait=off";
     push @$cmd, '-mon', "chardev=qmp,mode=control";
 

@@ -34,7 +34,7 @@ use PVE::QemuServer::Blockdev;
 use PVE::QemuServer::Drive qw(checked_volume_format);
 use PVE::QemuServer::Helpers;
 use PVE::QemuServer::Machine;
-use PVE::QemuServer::Monitor qw(mon_cmd);
+use PVE::QemuServer::Monitor qw(mon_cmd vm_qmp_peer);
 use PVE::QemuServer::QMPHelpers;
 
 use base qw (PVE::VZDump::Plugin);
@@ -996,7 +996,7 @@ sub archive_vma {
         }
 
         my $qmpclient = PVE::QMPClient->new();
-        my $qmp_peer = { name => "VM $vmid", id => $vmid, type => 'qmp' };
+        my $qmp_peer = vm_qmp_peer($vmid);
         my $backup_cb = sub {
             my ($vmid, $resp) = @_;
             $backup_job_uuid = $resp->{return}->{UUID};

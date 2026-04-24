@@ -11,6 +11,7 @@ use base 'Exporter';
 our @EXPORT_OK = qw(
     mon_cmd
     qmp_cmd
+    vm_qmp_peer
 );
 
 =head3 qmp_cmd
@@ -102,6 +103,12 @@ sub qmp_cmd {
     return $res;
 }
 
+sub vm_qmp_peer {
+    my ($vmid) = @_;
+
+    return { name => "VM $vmid", id => $vmid, type => 'qmp' };
+}
+
 sub qsd_cmd {
     my ($id, $execute, %params) = @_;
 
@@ -121,7 +128,7 @@ sub hmp_cmd {
     my ($vmid, $cmdline, $timeout) = @_;
 
     return qmp_cmd(
-        { name => "VM $vmid", id => $vmid, type => 'qmp' }, 'human-monitor-command',
+        vm_qmp_peer($vmid), 'human-monitor-command',
         'command-line' => $cmdline,
         timeout => $timeout,
     );
