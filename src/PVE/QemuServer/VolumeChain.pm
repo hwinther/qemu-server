@@ -284,8 +284,16 @@ sub blockdev_commit {
 }
 
 sub blockdev_stream {
-    my ($storecfg, $vmid, $machine_version, $deviceid, $drive, $snap, $parent_snap, $target_snap) =
-        @_;
+    my (
+        $storecfg,
+        $qmp_peer,
+        $machine_version,
+        $deviceid,
+        $drive,
+        $snap,
+        $parent_snap,
+        $target_snap,
+    ) = @_;
 
     my $volid = $drive->{file};
     $target_snap = undef if $target_snap eq 'current';
@@ -333,20 +341,13 @@ sub blockdev_stream {
     $options->{'base-node'} = $parent_fmt_blockdev->{'node-name'};
     $options->{'backing-file'} = $backing_file;
 
-    mon_cmd($vmid, 'block-stream', %$options);
+    qmp_cmd($qmp_peer, 'block-stream', %$options);
     $jobs->{$job_id} = {};
 
-    PVE::QemuServer::BlockJob::monitor(
-        vm_qmp_peer($vmid), undef, $jobs, 'auto', 0, 'stream',
-    );
+    PVE::QemuServer::BlockJob::monitor($qmp_peer, undef, $jobs, 'auto', 0, 'stream');
 
     blockdev_delete(
-        $storecfg,
-        vm_qmp_peer($vmid),
-        $drive,
-        $snap_file_blockdev,
-        $snap_fmt_blockdev,
-        $snap,
+        $storecfg, $qmp_peer, $drive, $snap_file_blockdev, $snap_fmt_blockdev, $snap,
     );
 }
 

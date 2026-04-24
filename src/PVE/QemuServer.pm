@@ -4459,7 +4459,7 @@ sub qemu_volume_snapshot_delete {
             print "stream intermediate snapshot $snap to $childsnap\n";
             PVE::QemuServer::VolumeChain::blockdev_stream(
                 $storecfg,
-                $vmid,
+                vm_qmp_peer($vmid),
                 $machine_version,
                 $attached_deviceid,
                 $drive,
