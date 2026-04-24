@@ -11,7 +11,7 @@ use PVE::Storage;
 use PVE::QemuServer::Blockdev qw(generate_file_blockdev generate_format_blockdev);
 use PVE::QemuServer::BlockJob;
 use PVE::QemuServer::Drive;
-use PVE::QemuServer::Monitor qw(mon_cmd vm_qmp_peer);
+use PVE::QemuServer::Monitor qw(mon_cmd qmp_cmd vm_qmp_peer);
 
 sub blockdev_external_snapshot {
     my ($storecfg, $vmid, $machine_version, $deviceid, $drive, $snap, $parent_snap) = @_;
@@ -25,7 +25,14 @@ sub blockdev_external_snapshot {
 
     #reopen current to snap
     blockdev_replace(
-        $storecfg, $vmid, $machine_version, $deviceid, $drive, 'current', $snap, $parent_snap,
+        $storecfg,
+        vm_qmp_peer($vmid),
+        $machine_version,
+        $deviceid,
+        $drive,
+        'current',
+        $snap,
+        $parent_snap,
     );
 
     #be sure to add drive in write mode
@@ -88,7 +95,7 @@ my sub blockdev_relative_backing_file {
 sub blockdev_replace {
     my (
         $storecfg,
-        $vmid,
+        $qmp_peer,
         $machine_version,
         $deviceid,
         $drive,
@@ -106,9 +113,8 @@ sub blockdev_replace {
     my $src_blockdev_name;
     if ($src_snap eq 'current') {
         # there might be other nodes on top like zeroinit, look up the current node below throttle
-        $src_blockdev_name = PVE::QemuServer::Blockdev::get_node_name_below_throttle(
-            vm_qmp_peer($vmid), $deviceid, 1,
-        );
+        $src_blockdev_name =
+            PVE::QemuServer::Blockdev::get_node_name_below_throttle($qmp_peer, $deviceid, 1);
     } else {
         $src_name_options = { 'snapshot-name' => $src_snap };
         $src_blockdev_name =
@@ -141,16 +147,16 @@ sub blockdev_replace {
             );
             $target_fmt_blockdev->{backing} = $parent_fmt_nodename;
         }
-        mon_cmd($vmid, 'blockdev-add', %$target_fmt_blockdev);
+        qmp_cmd($qmp_peer, 'blockdev-add', %$target_fmt_blockdev);
 
         #reopen the current throttlefilter nodename with the target fmt nodename
         my $throttle_blockdev = PVE::QemuServer::Blockdev::generate_throttle_blockdev(
             $drive, $target_fmt_blockdev->{'node-name'}, {},
         );
-        mon_cmd($vmid, 'blockdev-reopen', options => [$throttle_blockdev]);
+        qmp_cmd($qmp_peer, 'blockdev-reopen', options => [$throttle_blockdev]);
     } else {
         #intermediate snapshot
-        mon_cmd($vmid, 'blockdev-add', %$target_fmt_blockdev);
+        qmp_cmd($qmp_peer, 'blockdev-add', %$target_fmt_blockdev);
 
         #reopen the parent node with the new target fmt backing node
         my $parent_file_blockdev = generate_file_blockdev(
@@ -166,14 +172,14 @@ sub blockdev_replace {
             { 'snapshot-name' => $parent_snap },
         );
         $parent_fmt_blockdev->{backing} = $target_fmt_blockdev->{'node-name'};
-        mon_cmd($vmid, 'blockdev-reopen', options => [$parent_fmt_blockdev]);
+        qmp_cmd($qmp_peer, 'blockdev-reopen', options => [$parent_fmt_blockdev]);
 
         my $backing_file =
             blockdev_relative_backing_file($target_file_blockdev, $parent_file_blockdev);
 
         #change backing-file in qcow2 metadatas
-        mon_cmd(
-            $vmid, 'change-backing-file',
+        qmp_cmd(
+            $qmp_peer, 'change-backing-file',
             device => $deviceid,
             'image-node-name' => $parent_fmt_blockdev->{'node-name'},
             'backing-file' => $backing_file,
@@ -181,7 +187,7 @@ sub blockdev_replace {
     }
 
     # delete old file|fmt nodes
-    eval { PVE::QemuServer::Blockdev::detach(vm_qmp_peer($vmid), $src_blockdev_name); };
+    eval { PVE::QemuServer::Blockdev::detach($qmp_peer, $src_blockdev_name); };
     warn "detaching block node for $src_snap failed - $@" if $@;
 }
 

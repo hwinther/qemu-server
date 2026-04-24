@@ -4440,7 +4440,7 @@ sub qemu_volume_snapshot_delete {
 
             PVE::QemuServer::VolumeChain::blockdev_replace(
                 $storecfg,
-                $vmid,
+                vm_qmp_peer($vmid),
                 $machine_version,
                 $attached_deviceid,
                 $drive,
