@@ -19,7 +19,7 @@ use PVE::QemuServer::RunState;
 # If the job was started with auto-dismiss=false, it's necessary to dismiss it manually. Using this
 # option is useful to get the error for failed jobs here. QEMU's job lock should make it impossible
 # to see a job in 'concluded' state when auto-dismiss=true.
-# $info is the 'BlockJobInfo' for the job returned by query-block-jobs.
+# $qmp_info is the 'BlockJobInfo' for the job returned by query-block-jobs.
 # $job is the information about the job recorded on the PVE-side.
 # A block node $job->{'detach-node-name'} will be detached if present.
 sub qemu_handle_concluded_blockjob {
