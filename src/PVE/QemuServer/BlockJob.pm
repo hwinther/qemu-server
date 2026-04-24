@@ -84,7 +84,10 @@ sub qemu_blockjobs_cancel {
 # 'skip': wait until all jobs are ready, return with block jobs in ready state
 # 'auto': wait until all jobs disappear, only use for jobs which complete automatically
 sub monitor {
-    my ($vmid, $vmiddst, $jobs, $completion, $qga, $op) = @_;
+    my ($qmp_peer, $vmiddst, $jobs, $completion, $qga, $op) = @_;
+
+    die "drive mirror: different destination is only supported when peer is main QEMU instance\n"
+        if $vmiddst && $qmp_peer->{type} ne 'qmp';
 
     $completion //= 'complete';
     $op //= "mirror";
@@ -96,7 +99,7 @@ sub monitor {
         while (1) {
             die "block job ('$op') timed out\n" if $err_complete > 300;
 
-            my $stats = mon_cmd($vmid, "query-block-jobs");
+            my $stats = qmp_cmd($qmp_peer, "query-block-jobs");
             my $ctime = time();
 
             my $running_jobs = {};
@@ -121,9 +124,7 @@ sub monitor {
                 die "$job_id: '$op' has been cancelled\n" if !defined($job);
 
                 if ($job && $job->{status} eq 'concluded') {
-                    qemu_handle_concluded_blockjob(
-                        vm_qmp_peer($vmid), $job_id, $job, $jobs->{$job_id},
-                    );
+                    qemu_handle_concluded_blockjob($qmp_peer, $job_id, $job, $jobs->{$job_id});
                 }
 
                 my $busy = $job->{busy};
@@ -164,7 +165,8 @@ sub monitor {
                 # do the complete later (or has already been done)
                 last if $completion eq 'skip' || $completion eq 'auto';
 
-                if ($vmiddst && $vmiddst != $vmid) {
+                if ($qmp_peer->{type} eq 'qmp' && $vmiddst && $vmiddst != $qmp_peer->{id}) {
+                    my $vmid = $qmp_peer->{id};
                     my $should_fsfreeze = $qga && qga_check_running($vmid);
                     if ($should_fsfreeze) {
                         print "issuing guest agent 'guest-fsfreeze-freeze' command\n";
@@ -184,7 +186,7 @@ sub monitor {
                     }
 
                     # if we clone a disk for a new target vm, we don't switch the disk
-                    qemu_blockjobs_cancel(vm_qmp_peer($vmid), $jobs);
+                    qemu_blockjobs_cancel($qmp_peer, $jobs);
 
                     if ($should_fsfreeze) {
                         print "issuing guest agent 'guest-fsfreeze-thaw' command\n";
@@ -211,10 +213,10 @@ sub monitor {
                         eval {
                             if ($completion eq 'complete') {
                                 $detach_node_name = $jobs->{$job_id}->{'source-node-name'};
-                                mon_cmd($vmid, 'job-complete', id => $job_id);
+                                qmp_cmd($qmp_peer, 'job-complete', id => $job_id);
                             } elsif ($completion eq 'cancel') {
                                 $detach_node_name = $jobs->{$job_id}->{'target-node-name'};
-                                mon_cmd($vmid, 'block-job-cancel', device => $job_id);
+                                qmp_cmd($qmp_peer, 'block-job-cancel', device => $job_id);
                             } else {
                                 die "invalid completion value: $completion\n";
                             }
@@ -241,7 +243,7 @@ sub monitor {
     my $err = $@;
 
     if ($err) {
-        eval { qemu_blockjobs_cancel(vm_qmp_peer($vmid), $jobs) };
+        eval { qemu_blockjobs_cancel($qmp_peer, $jobs) };
         die "block job ($op) error: $err";
     }
 }
@@ -320,7 +322,7 @@ sub qemu_drive_mirror {
         die "mirroring error: $err\n";
     }
 
-    monitor($vmid, $vmiddst, $jobs, $completion, $qga);
+    monitor(vm_qmp_peer($vmid), $vmiddst, $jobs, $completion, $qga);
 }
 
 # Callers should version guard this (only available with a binary >= QEMU 8.2)
@@ -516,7 +518,14 @@ sub blockdev_mirror {
         log_warn("unable to delete blockdev '$target_node_name' - $@");
         die "error starting blockdev mirrror - $err";
     }
-    monitor($vmid, $dest->{vmid}, $jobs, $completion, $options->{'guest-agent'}, 'mirror');
+    monitor(
+        vm_qmp_peer($vmid),
+        $dest->{vmid},
+        $jobs,
+        $completion,
+        $options->{'guest-agent'},
+        'mirror',
+    );
 }
 
 sub mirror {

@@ -255,7 +255,9 @@ sub blockdev_commit {
         # 'block-commit' will complete automatically.
         my $complete = $src_snap && $src_snap ne 'current' ? 'auto' : 'complete';
 
-        PVE::QemuServer::BlockJob::monitor($vmid, undef, $jobs, $complete, 0, 'commit');
+        PVE::QemuServer::BlockJob::monitor(
+            vm_qmp_peer($vmid), undef, $jobs, $complete, 0, 'commit',
+        );
 
         blockdev_delete(
             $storecfg, $vmid, $drive, $src_file_blockdev, $src_fmt_blockdev, $src_snap,
@@ -329,7 +331,9 @@ sub blockdev_stream {
     mon_cmd($vmid, 'block-stream', %$options);
     $jobs->{$job_id} = {};
 
-    PVE::QemuServer::BlockJob::monitor($vmid, undef, $jobs, 'auto', 0, 'stream');
+    PVE::QemuServer::BlockJob::monitor(
+        vm_qmp_peer($vmid), undef, $jobs, 'auto', 0, 'stream',
+    );
 
     blockdev_delete($storecfg, $vmid, $drive, $snap_file_blockdev, $snap_fmt_blockdev, $snap);
 }

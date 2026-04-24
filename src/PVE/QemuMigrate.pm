@@ -1571,7 +1571,7 @@ sub phase2 {
         # thus, this command changes to it to blockjob complete (see qapi docs)
         eval {
             PVE::QemuServer::BlockJob::monitor(
-                $vmid, undef, $self->{storage_migration_jobs}, 'cancel',
+                vm_qmp_peer($vmid), undef, $self->{storage_migration_jobs}, 'cancel',
             );
         };
         if (my $err = $@) {

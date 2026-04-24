@@ -176,7 +176,7 @@ $qemu_server_blockjob_module->mock(
         common_mirror_mock($source->{vmid}, $drive_id);
     },
     monitor => sub {
-        my ($vmid, $vmiddst, $jobs, $completion, $qga) = @_;
+        my ($qmp_peer, $vmiddst, $jobs, $completion, $qga, $op) = @_;
 
         if (
             $fail_config->{block_job_monitor}
