@@ -14,7 +14,7 @@ use PVE::Storage;
 use PVE::QemuServer::Drive qw(drive_is_cdrom);
 use PVE::QemuServer::Helpers;
 use PVE::QemuServer::Machine;
-use PVE::QemuServer::Monitor qw(mon_cmd qmp_cmd vm_qmp_peer);
+use PVE::QemuServer::Monitor qw(mon_cmd qmp_cmd qsd_peer vm_qmp_peer);
 
 use base qw(Exporter);
 
@@ -584,12 +584,7 @@ state image.
 sub attach {
     my ($storecfg, $id, $drive, $options) = @_;
 
-    my $qmp_peer;
-    if ($options->{qsd}) {
-        $qmp_peer = { name => "QEMU storage daemon $id", id => $id, type => 'qsd' };
-    } else {
-        $qmp_peer = vm_qmp_peer($id);
-    }
+    my $qmp_peer = $options->{qsd} ? qsd_peer($id) : vm_qmp_peer($id);
 
     my $machine_version;
     if ($options->{qsd}) { # qemu-storage-daemon runs with the installed binary version

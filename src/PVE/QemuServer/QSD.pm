@@ -11,7 +11,7 @@ use PVE::Tools;
 
 use PVE::QemuServer::Blockdev;
 use PVE::QemuServer::Helpers;
-use PVE::QemuServer::Monitor;
+use PVE::QemuServer::Monitor qw(qsd_peer);
 
 =head3 start
 
@@ -22,13 +22,10 @@ Start a QEMU storage daemon instance with ID C<$id>.
 =cut
 
 sub start($id) {
-    my $name = "QEMU storage daemon $id";
-
     # If something is still mounted, that could block the new instance, try to clean up first.
     PVE::QemuServer::Helpers::qsd_fuse_export_cleanup_files($id);
 
-    my $qmp_socket_path =
-        PVE::QemuServer::Helpers::qmp_socket({ name => $name, id => $id, type => 'qsd' });
+    my $qmp_socket_path = PVE::QemuServer::Helpers::qmp_socket(qsd_peer($id));
     my $pidfile = PVE::QemuServer::Helpers::qsd_pidfile_name($id);
 
     my $cmd = [
@@ -45,7 +42,7 @@ sub start($id) {
     PVE::Tools::run_command($cmd);
 
     my $pid = PVE::QemuServer::Helpers::qsd_running_locally($id);
-    syslog("info", "$name started with PID $pid.");
+    syslog("info", "QEMU storage daemon $id started with PID $pid.");
 
     return;
 }
@@ -134,7 +131,7 @@ sub quit($id) {
     }
 
     unlink PVE::QemuServer::Helpers::qsd_pidfile_name($id);
-    unlink PVE::QemuServer::Helpers::qmp_socket({ name => $name, id => $id, type => 'qsd' });
+    unlink PVE::QemuServer::Helpers::qmp_socket(qsd_peer($id));
 
     PVE::QemuServer::Helpers::qsd_fuse_export_cleanup_files($id);
 
