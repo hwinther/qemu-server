@@ -120,6 +120,8 @@ sub cmd {
             $timeout = 3 * 60;
         } elsif (
             $cmd->{execute} eq 'blockdev-add'
+            || $cmd->{execute} eq 'blockdev-insert-medium'
+            || $cmd->{execute} eq 'block-export-add'
             || $cmd->{execute} eq 'device_add'
             || $cmd->{execute} eq 'device_del'
             || $cmd->{execute} eq 'netdev_add'
@@ -130,8 +132,13 @@ sub cmd {
             $timeout = 60;
         } elsif (
             $cmd->{execute} eq 'backup-cancel'
+            || $cmd->{execute} eq 'block-commit'
+            || $cmd->{execute} eq 'block-export-del'
+            || $cmd->{execute} eq 'block-stream'
             || $cmd->{execute} eq 'blockdev-del'
             || $cmd->{execute} eq 'blockdev-mirror'
+            || $cmd->{execute} eq 'blockdev-remove-medium'
+            || $cmd->{execute} eq 'blockdev-reopen'
             || $cmd->{execute} eq 'block-job-cancel'
             || $cmd->{execute} eq 'job-complete'
             || $cmd->{execute} eq 'drive-mirror'
