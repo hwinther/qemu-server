@@ -11,7 +11,7 @@ use PVE::Storage;
 use PVE::QemuServer::Blockdev qw(generate_file_blockdev generate_format_blockdev);
 use PVE::QemuServer::BlockJob;
 use PVE::QemuServer::Drive;
-use PVE::QemuServer::Monitor qw(mon_cmd);
+use PVE::QemuServer::Monitor qw(mon_cmd vm_qmp_peer);
 
 sub blockdev_external_snapshot {
     my ($storecfg, $vmid, $machine_version, $deviceid, $drive, $snap, $parent_snap) = @_;
@@ -106,8 +106,9 @@ sub blockdev_replace {
     my $src_blockdev_name;
     if ($src_snap eq 'current') {
         # there might be other nodes on top like zeroinit, look up the current node below throttle
-        $src_blockdev_name =
-            PVE::QemuServer::Blockdev::get_node_name_below_throttle($vmid, $deviceid, 1);
+        $src_blockdev_name = PVE::QemuServer::Blockdev::get_node_name_below_throttle(
+            vm_qmp_peer($vmid), $deviceid, 1,
+        );
     } else {
         $src_name_options = { 'snapshot-name' => $src_snap };
         $src_blockdev_name =

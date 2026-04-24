@@ -166,12 +166,22 @@ sub top_node_name {
 }
 
 sub get_node_name_below_throttle {
-    my ($vmid, $device_id, $assert_top_is_throttle) = @_;
+    my ($qmp_peer, $device_id, $assert_top_is_throttle) = @_;
 
-    my $block_info = get_block_info($vmid);
-    my $drive_id = $device_id =~ s/^drive-//r;
-    my $top = $block_info->{$drive_id}->{inserted}
-        or die "no block node inserted for drive '$drive_id'\n";
+    my $top;
+    if ($qmp_peer->{type} eq 'qmp') { # get_block_info() only works if there are front-end devices.
+        my $block_info = get_block_info($qmp_peer->{id});
+        my $drive_id = $device_id =~ s/^drive-//r;
+        $top = $block_info->{$drive_id}->{inserted};
+    } else {
+        my $named_block_node_info = qmp_cmd($qmp_peer, 'query-named-block-nodes');
+        for my $info ($named_block_node_info->@*) {
+            next if $info->{'node-name'} ne $device_id;
+            $top = $info;
+            last;
+        }
+    }
+    die "no block node found for drive '$device_id'\n" if !$top;
 
     if ($top->{drv} ne 'throttle') {
         die "$device_id: unexpected top node $top->{'node-name'} ($top->{drv})\n"

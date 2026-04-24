@@ -13,7 +13,7 @@ use PVE::Storage;
 use PVE::QemuServer::Agent qw(qga_check_running);
 use PVE::QemuServer::Blockdev;
 use PVE::QemuServer::Drive qw(checked_volume_format);
-use PVE::QemuServer::Monitor qw(mon_cmd);
+use PVE::QemuServer::Monitor qw(mon_cmd vm_qmp_peer);
 use PVE::QemuServer::RunState;
 
 # If the job was started with auto-dismiss=false, it's necessary to dismiss it manually. Using this
@@ -455,7 +455,7 @@ sub blockdev_mirror {
     # Need to replace the node below the top node. This is not necessarily a format node, for
     # example, it can also be a zeroinit node by a previous mirror! So query QEMU itself.
     my $source_node_name =
-        PVE::QemuServer::Blockdev::get_node_name_below_throttle($vmid, $device_id, 1);
+        PVE::QemuServer::Blockdev::get_node_name_below_throttle(vm_qmp_peer($vmid), $device_id, 1);
 
     # Copy original drive config (aio, cache, discard, ...):
     my $dest_drive = dclone($source->{drive});
