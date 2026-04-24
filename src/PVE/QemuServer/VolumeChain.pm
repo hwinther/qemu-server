@@ -192,7 +192,7 @@ sub blockdev_replace {
 }
 
 sub blockdev_commit {
-    my ($storecfg, $vmid, $machine_version, $deviceid, $drive, $src_snap, $target_snap) = @_;
+    my ($storecfg, $qmp_peer, $machine_version, $deviceid, $drive, $src_snap, $target_snap) = @_;
 
     my $volid = $drive->{file};
     my $target_was_read_only;
@@ -229,7 +229,7 @@ sub blockdev_commit {
         print "reopening internal read-only block node for '$target_snap' as writable\n";
         $target_fmt_blockdev->{'read-only'} = JSON::false;
         $target_file_blockdev->{'read-only'} = JSON::false;
-        mon_cmd($vmid, 'blockdev-reopen', options => [$target_fmt_blockdev]);
+        qmp_cmd($qmp_peer, 'blockdev-reopen', options => [$target_fmt_blockdev]);
         # For the guest, the drive is still read-only, because the top throttle node is.
     }
 
@@ -241,7 +241,7 @@ sub blockdev_commit {
         $opts->{'base-node'} = $target_fmt_blockdev->{'node-name'};
         $opts->{'top-node'} = $src_fmt_blockdev->{'node-name'};
 
-        mon_cmd($vmid, "block-commit", %$opts);
+        qmp_cmd($qmp_peer, "block-commit", %$opts);
         $jobs->{$job_id} = {};
 
         # If the 'current' state is committed to its backing snapshot, the job will not complete
@@ -255,17 +255,10 @@ sub blockdev_commit {
         # 'block-commit' will complete automatically.
         my $complete = $src_snap && $src_snap ne 'current' ? 'auto' : 'complete';
 
-        PVE::QemuServer::BlockJob::monitor(
-            vm_qmp_peer($vmid), undef, $jobs, $complete, 0, 'commit',
-        );
+        PVE::QemuServer::BlockJob::monitor($qmp_peer, undef, $jobs, $complete, 0, 'commit');
 
         blockdev_delete(
-            $storecfg,
-            vm_qmp_peer($vmid),
-            $drive,
-            $src_file_blockdev,
-            $src_fmt_blockdev,
-            $src_snap,
+            $storecfg, $qmp_peer, $drive, $src_file_blockdev, $src_fmt_blockdev, $src_snap,
         );
     };
     my $err = $@;
@@ -276,7 +269,7 @@ sub blockdev_commit {
         print "re-applying read-only flag for internal block node for '$target_snap'\n";
         $target_fmt_blockdev->{'read-only'} = JSON::true;
         $target_file_blockdev->{'read-only'} = JSON::true;
-        eval { mon_cmd($vmid, 'blockdev-reopen', options => [$target_fmt_blockdev]); };
+        eval { qmp_cmd($qmp_peer, 'blockdev-reopen', options => [$target_fmt_blockdev]); };
         print "failed to re-apply read-only flag - $@\n" if $@;
     }
 
