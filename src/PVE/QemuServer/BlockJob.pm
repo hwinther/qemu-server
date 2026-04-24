@@ -42,16 +42,16 @@ sub qemu_handle_concluded_blockjob {
 }
 
 sub qemu_blockjobs_cancel {
-    my ($vmid, $jobs) = @_;
+    my ($qmp_peer, $jobs) = @_;
 
     foreach my $job (keys %$jobs) {
         print "$job: Cancelling block job\n";
-        eval { mon_cmd($vmid, "block-job-cancel", device => $job); };
+        eval { qmp_cmd($qmp_peer, "block-job-cancel", device => $job); };
         $jobs->{$job}->{cancel} = 1;
     }
 
     while (1) {
-        my $stats = mon_cmd($vmid, "query-block-jobs");
+        my $stats = qmp_cmd($qmp_peer, "query-block-jobs");
 
         my $running_jobs = {};
         foreach my $stat (@$stats) {
@@ -61,7 +61,7 @@ sub qemu_blockjobs_cancel {
         foreach my $job (keys %$jobs) {
             my $info = $running_jobs->{$job};
             eval {
-                qemu_handle_concluded_blockjob(vm_qmp_peer($vmid), $job, $info, $jobs->{$job})
+                qemu_handle_concluded_blockjob($qmp_peer, $job, $info, $jobs->{$job})
                     if $info && $info->{status} eq 'concluded';
             };
             log_warn($@) if $@; # only warn and proceed with canceling other jobs
@@ -184,7 +184,7 @@ sub monitor {
                     }
 
                     # if we clone a disk for a new target vm, we don't switch the disk
-                    qemu_blockjobs_cancel($vmid, $jobs);
+                    qemu_blockjobs_cancel(vm_qmp_peer($vmid), $jobs);
 
                     if ($should_fsfreeze) {
                         print "issuing guest agent 'guest-fsfreeze-thaw' command\n";
@@ -241,7 +241,7 @@ sub monitor {
     my $err = $@;
 
     if ($err) {
-        eval { qemu_blockjobs_cancel($vmid, $jobs) };
+        eval { qemu_blockjobs_cancel(vm_qmp_peer($vmid), $jobs) };
         die "block job ($op) error: $err";
     }
 }
@@ -315,7 +315,7 @@ sub qemu_drive_mirror {
     # if a job already runs for this device we get an error, catch it for cleanup
     eval { mon_cmd($vmid, "drive-mirror", %$opts); };
     if (my $err = $@) {
-        eval { qemu_blockjobs_cancel($vmid, $jobs) };
+        eval { qemu_blockjobs_cancel(vm_qmp_peer($vmid), $jobs) };
         warn "$@\n" if $@;
         die "mirroring error: $err\n";
     }
@@ -510,7 +510,7 @@ sub blockdev_mirror {
     # if a job already runs for this device we get an error, catch it for cleanup
     eval { mon_cmd($vmid, "blockdev-mirror", $qmp_opts->%*); };
     if (my $err = $@) {
-        eval { qemu_blockjobs_cancel($vmid, $jobs) };
+        eval { qemu_blockjobs_cancel(vm_qmp_peer($vmid), $jobs) };
         log_warn("unable to cancel block jobs - $@");
         eval { PVE::QemuServer::Blockdev::detach(vm_qmp_peer($vmid), $target_node_name); };
         log_warn("unable to delete blockdev '$target_node_name' - $@");

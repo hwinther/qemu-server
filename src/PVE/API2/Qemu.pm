@@ -36,7 +36,7 @@ use PVE::QemuServer::CPUConfig;
 use PVE::QemuServer::Drive qw(checked_volume_format checked_parse_volname);
 use PVE::QemuServer::Helpers;
 use PVE::QemuServer::ImportDisk;
-use PVE::QemuServer::Monitor qw(mon_cmd);
+use PVE::QemuServer::Monitor qw(mon_cmd vm_qmp_peer);
 use PVE::QemuServer::Machine;
 use PVE::QemuServer::Memory qw(get_current_memory);
 use PVE::QemuServer::MetaInfo;
@@ -4659,7 +4659,9 @@ __PACKAGE__->register_method({
                 PVE::AccessControl::add_vm_to_pool($newid, $pool) if $pool;
             };
             if (my $err = $@) {
-                eval { PVE::QemuServer::BlockJob::qemu_blockjobs_cancel($vmid, $jobs) };
+                eval {
+                    PVE::QemuServer::BlockJob::qemu_blockjobs_cancel(vm_qmp_peer($vmid), $jobs);
+                };
                 sleep 1; # some storage like rbd need to wait before release volume - really?
 
                 foreach my $volid (@$newvollist) {

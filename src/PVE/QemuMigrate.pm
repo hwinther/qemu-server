@@ -33,7 +33,7 @@ use PVE::QemuServer::CPUConfig;
 use PVE::QemuServer::Drive qw(checked_volume_format);
 use PVE::QemuServer::Helpers qw(min_version);
 use PVE::QemuServer::Machine;
-use PVE::QemuServer::Monitor qw(mon_cmd);
+use PVE::QemuServer::Monitor qw(mon_cmd vm_qmp_peer);
 use PVE::QemuServer::Memory qw(get_current_memory);
 use PVE::QemuServer::Network;
 use PVE::QemuServer::QMPHelpers;
@@ -1618,7 +1618,7 @@ sub phase2_cleanup {
     if ($self->{storage_migration}) {
         eval {
             PVE::QemuServer::BlockJob::qemu_blockjobs_cancel(
-                $vmid,
+                vm_qmp_peer($vmid),
                 $self->{storage_migration_jobs},
             );
         };
