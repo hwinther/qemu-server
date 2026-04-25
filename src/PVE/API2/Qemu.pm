@@ -743,7 +743,7 @@ my sub assert_tpm_snapshot_delete_possible {
     my $volid = $drive->{file};
     my $storecfg = PVE::Storage::config();
 
-    return if $conf->{parent} ne $snap_name; # allowed if not top-most snapshot
+    return if ($conf->{parent} // '') ne $snap_name; # allowed if not top-most snapshot
 
     return if !$snap_conf->{tpmstate0};
     my $snap_drive = PVE::QemuServer::Drive::parse_drive('tpmstate0', $snap_conf->{tpmstate0});
