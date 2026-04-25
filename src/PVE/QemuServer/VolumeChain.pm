@@ -11,7 +11,7 @@ use PVE::Storage;
 use PVE::QemuServer::Blockdev qw(generate_file_blockdev generate_format_blockdev);
 use PVE::QemuServer::BlockJob;
 use PVE::QemuServer::Drive;
-use PVE::QemuServer::Monitor qw(mon_cmd qmp_cmd vm_qmp_peer);
+use PVE::QemuServer::Monitor qw(qmp_cmd);
 
 sub blockdev_external_snapshot {
     my ($storecfg, $qmp_peer, $machine_version, $deviceid, $drive, $snap, $parent_snap) = @_;
