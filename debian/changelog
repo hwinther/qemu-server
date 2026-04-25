@@ -1,3 +1,19 @@
+qemu-server (9.1.9) trixie; urgency=medium
+
+  * qmp client: set default timeouts for more block-related commands
+    ('block-commit', 'block-stream', 'blockdev-reopen', and others) to avoid
+    the previous five-second fallback failing prematurely while the operation
+    waits for in-flight I/O to drain.
+
+  * fix #7066: api: allow live snapshot create and remove for a qcow2 TPM
+    state drive on a storage with the 'snapshot-as-volume-chain' option
+    enabled, by routing the block-level QMP commands for the TPM disk to the
+    QEMU storage daemon that holds the FUSE-exported state. Removing the
+    top-most snapshot live remains unsupported, as the FUSE export holds the
+    'resize' permission that 'block-commit' and 'block-stream' require.
+
+ -- Proxmox Support Team <support@proxmox.com>  Sat, 25 Apr 2026 19:46:01 +0200
+
 qemu-server (9.1.8) trixie; urgency=medium
 
   * cloud-init: dns: avoid "uninitialized value in split" warning if there is
