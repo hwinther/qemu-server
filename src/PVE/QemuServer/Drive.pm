@@ -1159,8 +1159,15 @@ sub drive_uses_qsd_fuse {
 
     if ($drive->{interface} eq 'tpmstate') {
         my ($storeid) = PVE::Storage::parse_volume_id($drive->{file}, 1);
+        return if !$storeid; # not managed by the PVE storage layer
+
+        # The iSCSIDirect and ZFS-over-iSCSI plugins do not implement map_volume() and only provide
+        # an iscsi protocol path. Use QSD to make such volumes accessible to swtpm.
+        my $path = PVE::Storage::path($storecfg, $drive->{file});
+        return 1 if $path =~ m!^iscsi://!;
+
         my $format = checked_volume_format($storecfg, $drive->{file});
-        return $storeid && $format ne 'raw';
+        return $format ne 'raw';
     }
 
     return;
