@@ -1270,6 +1270,12 @@ __PACKAGE__->register_method({
 
         $rpcenv->check($authuser, "/", ['Sys.Console']) if $ha_managed;
 
+        # vm_start is invoked directly from the create/restore worker, so its
+        # own permissions predicate doesn't fire here - check VM.PowerMgmt up
+        # front whenever the caller asked us to start the VM after creation.
+        $rpcenv->check($authuser, "/vms/$vmid", ['VM.PowerMgmt'])
+            if $start_after_create;
+
         if ($rpcenv->check($authuser, "/vms/$vmid", ['VM.Allocate'], 1)) {
             # OK
         } elsif ($pool && $rpcenv->check($authuser, "/pool/$pool", ['VM.Allocate'], 1)) {
