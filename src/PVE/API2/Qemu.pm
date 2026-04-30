@@ -6330,6 +6330,12 @@ __PACKAGE__->register_method({
 
         my $snapname = extract_param($param, 'snapname');
 
+        # vm_start is invoked directly from the worker, so its own permissions
+        # predicate doesn't fire here - check VM.PowerMgmt up front so a user
+        # with only VM.Snapshot.Rollback can't power the VM on as a side effect.
+        $rpcenv->check($authuser, "/vms/$vmid", ['VM.PowerMgmt'])
+            if $param->{start};
+
         my $realcmd = sub {
             PVE::Cluster::log_msg('info', $authuser, "rollback snapshot VM $vmid: $snapname");
             PVE::QemuConfig->snapshot_rollback($vmid, $snapname);
