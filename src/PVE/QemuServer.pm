@@ -4345,7 +4345,7 @@ sub qemu_volume_snapshot {
     my $volid = $drive->{file};
     my $running = check_running($vmid);
 
-    my $do_snapshots_type = do_snapshots_type($storecfg, $volid, $deviceid, $running);
+    my $do_snapshots_type = do_snapshots_type($storecfg, $drive, $deviceid, $running);
 
     if ($do_snapshots_type eq 'internal') {
         print "internal qemu snapshot\n";
@@ -4390,7 +4390,7 @@ sub qemu_volume_snapshot_delete {
         );
     }
 
-    my $do_snapshots_type = do_snapshots_type($storecfg, $volid, $attached_deviceid, $running);
+    my $do_snapshots_type = do_snapshots_type($storecfg, $drive, $attached_deviceid, $running);
 
     if ($do_snapshots_type eq 'internal') {
         my $qmp_peer = PVE::QemuServer::Drive::drive_qmp_peer($storecfg, $vmid, $drive);
@@ -7782,12 +7782,19 @@ sub restore_tar_archive {
 }
 
 sub do_snapshots_type {
-    my ($storecfg, $volid, $deviceid, $running) = @_;
+    my ($storecfg, $drive, $deviceid, $running) = @_;
 
     #we use storage snapshot if vm is not running or if disk is unused;
     return 'storage' if !$running || !$deviceid;
 
-    if (my $method = PVE::Storage::volume_qemu_snapshot_method($storecfg, $volid)) {
+    if (
+        $deviceid eq 'drive-tpmstate0'
+        && !PVE::QemuServer::Drive::drive_uses_qsd_fuse($storecfg, $drive)
+    ) {
+        return 'storage';
+    }
+
+    if (my $method = PVE::Storage::volume_qemu_snapshot_method($storecfg, $drive->{file})) {
         return 'internal' if $method eq 'qemu';
         return 'external' if $method eq 'mixed';
     }
