@@ -107,6 +107,10 @@ sub start_remote_tunnel {
             my $unix_sockets = [keys %{ $tunnel_info->{unix_sockets} }];
             push @$unix_sockets, $tunnel_info->{addr};
             for my $sock (@$unix_sockets) {
+                # The peer chose this path, so untaint it before unlinking
+                # and forwarding it - mirrors the remote-cluster check below.
+                die "unexpected socket address '$sock'\n"
+                    if $sock !~ m|^/run/qemu-server/(?:(?!\.\./).)+\.migrate$|;
                 push @$ssh_forward_info, "$sock:$sock";
                 unlink $sock;
             }
