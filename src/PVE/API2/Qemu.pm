@@ -6546,7 +6546,7 @@ __PACKAGE__->register_method({
         my $conf = PVE::QemuConfig->load_config($param->{vmid});
 
         my $mask_password =
-            !$rpcenv->check($authuser, '/vms/{vmid}', ['VM.Config.Cloudinit'], 1);
+            !$rpcenv->check($authuser, "/vms/$param->{vmid}", ['VM.Config.Cloudinit'], 1);
 
         return PVE::QemuServer::Cloudinit::dump_cloudinit_config(
             $conf,
