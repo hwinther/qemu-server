@@ -12,6 +12,16 @@ use PVE::QemuServer::PCI qw(print_pci_addr);
 
 use base qw(Exporter);
 
+# Double commas in a value so QEMU's argv parser keeps the value intact
+# instead of treating the comma as a field separator. The 'urlencoded'
+# format used for serial= and model= permits encoded commas in the input
+# which the uri_unescape calls below decode to a raw comma.
+sub _escape_qemu_arg_value {
+    my ($value) = @_;
+    $value =~ s/,/,,/g;
+    return $value;
+}
+
 our @EXPORT_OK = qw(
     print_drivedevice_full
     scsihw_infos
@@ -147,7 +157,7 @@ sub print_drivedevice_full {
 
         if ($device_type eq 'hd') {
             if (my $model = $drive->{model}) {
-                $model = URI::Escape::uri_unescape($model);
+                $model = _escape_qemu_arg_value(URI::Escape::uri_unescape($model));
                 $device .= ",model=$model";
             }
             if ($drive->{ssd}) {
@@ -165,7 +175,7 @@ sub print_drivedevice_full {
     $device .= ",bootindex=$drive->{bootindex}" if $drive->{bootindex};
 
     if (my $serial = $drive->{serial}) {
-        $serial = URI::Escape::uri_unescape($serial);
+        $serial = _escape_qemu_arg_value(URI::Escape::uri_unescape($serial));
         $device .= ",serial=$serial";
     }
 
