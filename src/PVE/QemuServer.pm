@@ -3208,25 +3208,19 @@ sub config_to_command {
 
     if ($conf->{smbios1}) {
         my $smbios_conf = parse_smbios1($conf->{smbios1});
-        if ($smbios_conf->{base64}) {
-            # Do not pass base64 flag to qemu
-            delete $smbios_conf->{base64};
-            my $smbios_string = "";
-            foreach my $key (keys %$smbios_conf) {
-                my $value;
-                if ($key eq "uuid") {
-                    $value = $smbios_conf->{uuid};
-                } else {
-                    $value = decode_base64($smbios_conf->{$key});
-                }
-                # qemu accepts any binary data, only commas need escaping by double comma
-                $value =~ s/,/,,/g;
-                $smbios_string .= "," . $key . "=" . $value if $value;
-            }
-            push @$cmd, '-smbios', "type=1" . $smbios_string;
-        } else {
-            push @$cmd, '-smbios', "type=1,$conf->{smbios1}";
+        # Do not pass base64 flag to qemu
+        my $is_base64 = delete $smbios_conf->{base64};
+        my $smbios_string = "";
+        foreach my $key (sort keys %$smbios_conf) {
+            my $value = $smbios_conf->{$key};
+            $value = decode_base64($value) if $is_base64 && $key ne 'uuid';
+            # qemu accepts any binary data, only commas need escaping by double
+            # comma; do this for both branches so a per-field schema relaxation
+            # never silently loses comma-safety.
+            $value =~ s/,/,,/g;
+            $smbios_string .= "," . $key . "=" . $value if $value;
         }
+        push @$cmd, '-smbios', "type=1" . $smbios_string;
     }
 
     if ($conf->{bios} && $conf->{bios} eq 'ovmf') {
