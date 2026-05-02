@@ -923,7 +923,7 @@ sub verify_volume_id_or_absolute_path {
 my $serialdesc = {
     optional => 1,
     type => 'string',
-    pattern => '(/dev/.+|socket)',
+    pattern => '(/dev/[^,]+|socket)',
     description => "Create a serial device inside the VM (n is 0 to 3)",
     verbose_description => <<EODESCR,
 Create a serial device inside the VM (n is 0 to 3), and pass through a
