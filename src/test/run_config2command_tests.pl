@@ -420,6 +420,18 @@ $pve_common_tools->mock(
     },
 );
 
+my $pve_common_file;
+$pve_common_file = Test::MockModule->new('PVE::File');
+$pve_common_file->mock(
+    file_copy => sub {
+        my ($filename, $dst, $max, $perm) = @_;
+        if ($dst =~ m|^/run/qemu-server/efidisk|) {
+            return;
+        }
+        return $pve_common_file->original('file_copy')->($filename, $dst, $max, $perm);
+    },
+);
+
 my $pve_cpuconfig;
 $pve_cpuconfig = Test::MockModule->new('PVE::QemuServer::CPUConfig');
 $pve_cpuconfig->mock(
