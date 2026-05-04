@@ -81,6 +81,8 @@ sub kvm_user_version {
 
 # Paths and directories
 
+# FIXME: MAJOR VERSION: use /run/qemu-server everywhere instead of mixing /run and /var/run and rely
+# on debian/tmpfiles config to create the directory.
 our $var_run_tmpdir = "/var/run/qemu-server";
 mkdir $var_run_tmpdir;
 
