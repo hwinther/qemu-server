@@ -129,7 +129,7 @@ my sub print_ovmf_drive_commandlines {
     } else {
         log_warn("no efidisk configured! Using temporary efivars disk.");
         my $path = "/tmp/$vmid-ovmf.fd";
-        PVE::Tools::file_copy($ovmf_vars, $path, $ovmf_vars_size);
+        PVE::File::file_copy($ovmf_vars, $path, $ovmf_vars_size);
         $var_drive_str .= ",format=raw,file=$path";
         $var_drive_str .= ",size=" . $ovmf_vars_size if $version_guard->(4, 1, 2);
     }
@@ -221,7 +221,7 @@ my sub generate_ovmf_blockdev {
     } else {
         log_warn("no efidisk configured! Using temporary efivars disk.");
         my $path = "/tmp/$vmid-ovmf.fd";
-        PVE::Tools::file_copy($ovmf_vars, $path, file_get_size($ovmf_vars));
+        PVE::File::file_copy($ovmf_vars, $path, file_get_size($ovmf_vars));
         $drive = { file => $path, interface => 'efidisk', index => 0 };
         $format = 'raw';
     }
