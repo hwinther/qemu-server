@@ -295,7 +295,7 @@ sub __snapshot_check_freeze_needed {
     my $freeze_needed = 0;
     my $running = $class->__snapshot_check_running($vmid);
 
-    if (!$save_vmstate) {
+    if ($running && !$save_vmstate) {
         $freeze_needed =
             PVE::QemuServer::Agent::guest_fs_freeze_applicable($config->{agent}, $vmid);
     }
