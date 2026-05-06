@@ -1,3 +1,53 @@
+qemu-server (9.1.10) trixie; urgency=medium
+
+  * fix #7383: agent: skip the 'guest-fsfreeze-freeze' QMP command when the
+    guest filesystem is already frozen, to avoid the confusing 'the command is
+    not allowed' error users would otherwise see.
+
+  * snapshot: tpm state: fall back to the storage-layer snapshot type when the
+    TPM drive is not handled by the QEMU Storage Daemon, since the drive is in
+    that case not attached to any QMP-managed process.
+
+  * fix #3662: tpm: use the QEMU Storage Daemon to give swtpm access to
+    iSCSIDirect and ZFS-over-iSCSI volumes, since those plugins do not
+    implement map_volume() and only expose an iscsi:// protocol path that
+    swtpm cannot open directly.
+
+  * ovmf: place the temporary EFI vars file under /run instead of /tmp, so
+    Debian Trixie's regular /tmp cleanup does not remove the file while the VM
+    is running and break subsequent migration.
+
+  * boot: efi vars: promote the message about missing Microsoft 2023
+    certificates from informational to warning so it stands out in task logs.
+
+  * api: cloud-init dump endpoint: interpolate the VMID in the in-line
+    privilege check so users holding VM.Config.Cloudinit see the unmasked
+    output the masking commit originally intended; previously the path
+    placeholder was never expanded, so only root@pam ever saw plaintext.
+
+  * api: vm create and snapshot rollback: validate VM.PowerMgmt up front when
+    the caller asks to start the VM after the operation. Both workers dispatch
+    vm_start as a class method, bypassing the REST handler's permission
+    predicate; only matters for admin-defined custom roles since no
+    PVE-shipped role splits these privileges.
+
+  * argv hardening: escape commas in URL-encoded drive serial and model
+    fields, unify the smbios per-field emission to always escape, and forbid
+    commas in the serial[N] host-device path pattern, so future schema
+    relaxations cannot accidentally splice attacker-controlled key=val pairs
+    into the -device or -smbios argv.
+
+  * migrate: anchor peer-supplied tunnel socket paths to
+    /run/qemu-server/<...>.migrate before unlinking and forwarding them,
+    mirroring the existing remote-cluster check.
+
+  * pre-create /run/qemu-server at mode 0750 root:www-data via
+    systemd-tmpfiles, aligning with /run/pve and /run/pve-cluster.
+
+  * api: ostype: include 'Linux Kernel 7.x' in the verbose description.
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 06 May 2026 02:18:36 +0200
+
 qemu-server (9.1.9) trixie; urgency=medium
 
   * qmp client: set default timeouts for more block-related commands
