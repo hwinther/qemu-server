@@ -430,6 +430,13 @@ void cleanup_client(struct Client *client) {
             VERBOSE_PRINT("%s: backup ended\n", client->vzdump.vmid);
             vmc->qemu.backup = false;
             terminate_check(vmc);
+
+            // we cleaned up a vm client while handling a vzdump client, so we
+            // have to free it here directly. the nested cleanup call must have
+            // removed it from the vm_clients hash table already in that case.
+            if (vmc->pending_free) {
+                free(vmc);
+            }
         }
         break;
 
@@ -443,7 +450,7 @@ void cleanup_client(struct Client *client) {
     }
     VERBOSE_PRINT("removing %s from forced cleanups\n", client->qemu.vmid);
     forced_cleanups = g_slist_remove(forced_cleanups, client);
-    free(client);
+    client->pending_free = true;
 }
 
 void terminate_client(struct Client *client) {
@@ -491,11 +498,13 @@ void handle_client(struct Client *client) {
         if (!(errno == EAGAIN || errno == EWOULDBLOCK)) {
             log_neg((int)len, "read");
             cleanup_client(client);
+            free(client);
         }
         return;
     } else if (len == 0) {
         VERBOSE_PRINT("pid%d: got EOF\n", client->pid);
         cleanup_client(client);
+        free(client);
         return;
     }
 
@@ -543,6 +552,12 @@ void handle_client(struct Client *client) {
             break;
         }
         json_object_put(jobj);
+
+        // if the client was cleaned up, we have to free it here
+        if (client->pending_free) {
+            free(client);
+            break;
+        }
     }
     json_tokener_free(tok);
 }

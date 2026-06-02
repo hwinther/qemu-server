@@ -66,6 +66,7 @@ struct Client {
     pid_t pid;
     int pidfd;
     time_t timeout;
+    bool pending_free;
 
     ClientType type;
     ClientState state;
