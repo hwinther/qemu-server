@@ -1275,7 +1275,7 @@ __PACKAGE__->register_method({
         # vm_start is invoked directly from the create/restore worker, so its
         # own permissions predicate doesn't fire here - check VM.PowerMgmt up
         # front whenever the caller asked us to start the VM after creation.
-        $rpcenv->check($authuser, "/vms/$vmid", ['VM.PowerMgmt'])
+        $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.PowerMgmt'])
             if $start_after_create;
 
         if ($rpcenv->check($authuser, "/vms/$vmid", ['VM.Allocate'], 1)) {
