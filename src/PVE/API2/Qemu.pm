@@ -1504,6 +1504,9 @@ __PACKAGE__->register_method({
                     $conf->{lock} = 'import' if $live_import_mapping;
 
                     if (defined $conf->{tags}) {
+                        assert_tag_permissions(
+                            $vmid, {}, $conf->{tags}, $rpcenv, $authuser,
+                        );
                         $conf->{tags} = PVE::GuestHelpers::get_unique_tags($conf->{tags});
                     }
 
