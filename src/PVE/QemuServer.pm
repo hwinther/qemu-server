@@ -7963,6 +7963,10 @@ sub clone_disk {
         my $storeid = $storage || $src_storeid;
 
         my $dst_format = resolve_dst_disk_format($storecfg, $storeid, $drive->{file}, $format);
+        if ($format && $format ne $dst_format) {
+            warn "format '$format' is not supported by the target storage '$storeid' - using"
+                . " '$dst_format' instead\n";
+        }
 
         my $name = undef;
         my $size = undef;
