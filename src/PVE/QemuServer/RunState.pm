@@ -2,6 +2,7 @@ package PVE::QemuServer::RunState;
 
 use v5.36;
 
+use JSON qw();
 use POSIX qw(strftime);
 
 use PVE::Cluster;
@@ -13,6 +14,7 @@ use PVE::QemuConfig;
 use PVE::QemuMigrate::Helpers;
 use PVE::QemuServer::Monitor qw(mon_cmd);
 use PVE::QemuServer::Network;
+use PVE::QemuServer::QMPHelpers;
 
 # note: if using the statestorage parameter, the caller has to check privileges
 sub vm_suspend($vmid, $skiplock = undef, $includestate = undef, $statestorage = undef) {
@@ -72,7 +74,11 @@ sub vm_suspend($vmid, $skiplock = undef, $includestate = undef, $statestorage = 
 
         eval {
             PVE::QemuMigrate::Helpers::set_migration_caps($vmid, 1);
-            mon_cmd($vmid, "savevm-start", statefile => $path);
+            my $savevm_start_params = { statefile => $path };
+            if (PVE::QemuServer::QMPHelpers::runs_at_least_qemu_version($vmid, 11, 0, 2)) {
+                $savevm_start_params->{'skip-vm-start'} = JSON::true;
+            }
+            mon_cmd($vmid, "savevm-start", $savevm_start_params->%*);
             for (;;) {
                 my $state = mon_cmd($vmid, "query-savevm");
                 if (!$state->{status}) {
