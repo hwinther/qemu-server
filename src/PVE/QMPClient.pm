@@ -156,6 +156,12 @@ sub cmd {
             || $cmd->{execute} eq 'blockdev-snapshot-internal-sync'
         ) {
             $timeout = 60 * 60; # 1 hour
+        } elsif ($cmd->{execute} eq 'quit') {
+            # The 'quit' QMP command itself is fast, since it only records the shutdown request and
+            # notifies the main loop, but getting the response can take a while. The reason is that
+            # qmp_dispatch() yields and must be woken after executing the command and at that stage,
+            # QEMU is already busy with teardown too.
+            $timeout = 60;
         } else {
             #  NOTE: if you came here as user and want to change this, try using IO-Threads first
             # which move out quite some processing of the main thread, leaving more time for QMP
