@@ -1,7 +1,6 @@
 package PVE::QemuServer::RunState;
 
-use strict;
-use warnings;
+use v5.36;
 
 use POSIX qw(strftime);
 
@@ -16,8 +15,7 @@ use PVE::QemuServer::Monitor qw(mon_cmd);
 use PVE::QemuServer::Network;
 
 # note: if using the statestorage parameter, the caller has to check privileges
-sub vm_suspend {
-    my ($vmid, $skiplock, $includestate, $statestorage) = @_;
+sub vm_suspend($vmid, $skiplock = undef, $includestate = undef, $statestorage = undef) {
 
     my $conf;
     my $path;
@@ -127,8 +125,7 @@ sub vm_suspend {
 # $nocheck is set when called as part of a migration - in this context the
 # location of the config file (source or target node) is not deterministic,
 # since migration cannot wait for pmxcfs to process the rename
-sub vm_resume {
-    my ($vmid, $skiplock, $nocheck) = @_;
+sub vm_resume($vmid, $skiplock = undef, $nocheck = undef) {
 
     PVE::QemuConfig->lock_config(
         $vmid,
@@ -184,32 +181,29 @@ sub vm_resume {
     );
 }
 
-sub get_cleanup_flag_path {
-    my ($vmid) = @_;
+sub get_cleanup_flag_path($vmid) {
     return "/run/qemu-server/$vmid.cleanup";
 }
 
-sub create_cleanup_flag {
-    my ($vmid) = @_;
+sub create_cleanup_flag($vmid) {
     # write time so we could check in a timeout if needed
     PVE::File::file_set_contents(get_cleanup_flag_path($vmid), time());
 }
 
-sub clear_cleanup_flag {
-    my ($vmid) = @_;
+sub clear_cleanup_flag($vmid) {
     my $path = get_cleanup_flag_path($vmid);
     unlink $path or $! == POSIX::ENOENT or die "removing cleanup flag for $vmid failed: $!\n";
 }
 
-sub cleanup_flag_exists {
-    my ($vmid) = @_;
+sub cleanup_flag_exists($vmid) {
     return -f get_cleanup_flag_path($vmid);
 }
 
 # checks if /run/qemu-server/force-legacy-cleanup exists that will be created on
 # package update and cleared on bootup so we can be sure the guests were
 # started recently enough
-sub can_use_cleanup_flag {
+sub can_use_cleanup_flag() {
     !-f "/run/qemu-server/force-legacy-cleanup";
 }
+
 1;
