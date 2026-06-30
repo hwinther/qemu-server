@@ -54,6 +54,11 @@ my sub mocked_mon_cmd {
         return [];
     } elsif ($command eq 'qom-set') {
         return;
+    } elsif ($command eq 'query-version') {
+        return {
+            qemu => { major => '11', minor => '0', micro => '0' },
+            package => 'pve-qemu-kvm_11.0.0-4',
+        };
     }
     die "mon_cmd (mocked) - implement me: $command";
 }
