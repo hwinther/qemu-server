@@ -5865,7 +5865,8 @@ sub vm_start_nolock {
     eval { PVE::QemuServer::PCI::reserve_pci_usage($pci_reserve_list, $vmid, undef, $pid) };
     warn $@ if $@;
 
-    syslog("info", "VM $vmid started with PID $pid.");
+    my $qemu_pkg_string = PVE::QemuServer::QMPHelpers::get_qemu_package_string($vmid);
+    syslog("info", "VM $vmid started with PID $pid using $qemu_pkg_string.");
 
     PVE::QemuServer::RunState::create_cleanup_flag($vmid);
 

@@ -19,6 +19,12 @@ sub nbd_stop($vmid) {
     mon_cmd($vmid, 'nbd-server-stop', timeout => 25);
 }
 
+# The QEMU package string is of the form pve-qemu-kvm_X.Y.Z-R.
+sub get_qemu_package_string($vmid) {
+    my $res = mon_cmd($vmid, 'query-version');
+    return $res->{package};
+}
+
 sub get_running_qemu_version($vmid) {
     my $res = mon_cmd($vmid, 'query-version');
     return "$res->{qemu}->{major}.$res->{qemu}->{minor}";
