@@ -89,7 +89,8 @@ use PVE::QemuServer::OVMF;
 use PVE::QemuServer::PCI qw(print_pci_addr print_pcie_addr print_pcie_root_port parse_hostpci);
 use PVE::QemuServer::PCI::Mdev;
 use PVE::QemuServer::QemuImage;
-use PVE::QemuServer::QMPHelpers qw(qemu_deviceadd qemu_devicedel qemu_objectadd qemu_objectdel);
+use PVE::QemuServer::QMPHelpers
+    qw(get_running_qemu_version qemu_deviceadd qemu_devicedel qemu_objectadd qemu_objectdel);
 use PVE::QemuServer::QSD;
 use PVE::QemuServer::RNG qw(parse_rng print_rng_device_commandline print_rng_object_commandline);
 use PVE::QemuServer::RunState;
@@ -8071,12 +8072,6 @@ no_data_clone:
     $disk->{size} = $size if defined($size) && !$unused;
 
     return $disk;
-}
-
-sub get_running_qemu_version {
-    my ($vmid) = @_;
-    my $res = mon_cmd($vmid, "query-version");
-    return "$res->{qemu}->{major}.$res->{qemu}->{minor}";
 }
 
 sub qemu_use_old_bios_files {

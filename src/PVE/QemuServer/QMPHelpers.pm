@@ -8,6 +8,7 @@ use PVE::QemuServer::Monitor qw(mon_cmd);
 use base 'Exporter';
 
 our @EXPORT_OK = qw(
+    get_running_qemu_version
     qemu_deviceadd
     qemu_devicedel
     qemu_objectadd
@@ -16,6 +17,11 @@ our @EXPORT_OK = qw(
 
 sub nbd_stop($vmid) {
     mon_cmd($vmid, 'nbd-server-stop', timeout => 25);
+}
+
+sub get_running_qemu_version($vmid) {
+    my $res = mon_cmd($vmid, 'query-version');
+    return "$res->{qemu}->{major}.$res->{qemu}->{minor}";
 }
 
 sub qemu_deviceadd($vmid, $devicefull) {

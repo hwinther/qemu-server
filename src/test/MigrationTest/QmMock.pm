@@ -82,6 +82,11 @@ $qemu_server_helpers_module->mock(
     },
 );
 
+my $qemu_server_qmp_helpers_module = Test::MockModule->new("PVE::QemuServer::QMPHelpers");
+$qemu_server_qmp_helpers_module->mock(
+    mon_cmd => \&mocked_mon_cmd,
+);
+
 my $qemu_server_runstate_module = Test::MockModule->new("PVE::QemuServer::RunState");
 $qemu_server_runstate_module->mock(
     get_cleanup_flag_path => sub {
