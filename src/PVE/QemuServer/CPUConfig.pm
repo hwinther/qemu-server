@@ -647,6 +647,27 @@ sub get_custom_model($name, $noerr = undef, $conf = undef) {
     return $model;
 }
 
+sub assert_custom_model_compatibility($local_cpu, $remote_cpu) {
+    my $cputype = $local_cpu->{cputype};
+
+    my $local_cpu_flags = join ';', sort split /;/, ($local_cpu->{flags} // '');
+    my $remote_cpu_flags = join ';', sort split /;/, ($remote_cpu->{flags} // '');
+
+    die "CPU $cputype config mismatch for flags: local="
+        . $local_cpu_flags
+        . ",remote="
+        . $remote_cpu_flags . "\n"
+        if $local_cpu_flags ne $remote_cpu_flags;
+
+    for my $key (sort keys %$cpu_fmt) {
+        next if $key eq 'flags';
+        my $v1 = $local_cpu->{$key} // '';
+        my $v2 = $remote_cpu->{$key} // '';
+        die "CPU $cputype config mismatch for $key: local=$v1,remote=$v2\n"
+            if $v1 ne $v2;
+    }
+}
+
 # Print a QEMU device node for a given VM configuration for hotplugging CPUs
 sub print_cpu_device($conf, $arch, $id) {
 

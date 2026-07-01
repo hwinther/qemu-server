@@ -5768,6 +5768,31 @@ __PACKAGE__->register_method({
             $param->{online} = 0;
         }
 
+        if (defined($conf->{cpu})) {
+            my $cpu = PVE::JSONSchema::parse_property_string('pve-vm-cpu-conf', $conf->{cpu});
+            my $cputype = $cpu->{cputype};
+            if (defined($cputype) && PVE::QemuServer::CPUConfig::is_custom_model($cputype)) {
+                my $custom_cpu = PVE::QemuServer::CPUConfig::get_custom_model($cputype);
+
+                my $remote_custom_cpu = eval {
+                    $api_client->get("/cluster/qemu/custom-cpu-models/"
+                        . URI::Escape::uri_escape_utf8($cputype));
+                };
+                die "could not validate custom CPU model compatibility: $@\n" if $@;
+
+                my $cpu_schema = {
+                    type => 'object',
+                    properties => PVE::QemuServer::CPUConfig->options(),
+                };
+                eval { PVE::JSONSchema::validate($remote_custom_cpu, $cpu_schema); };
+                die "could not validate custom CPU model compatibility: $@\n" if $@;
+
+                PVE::QemuServer::CPUConfig::assert_custom_model_compatibility(
+                    $custom_cpu, $remote_custom_cpu,
+                );
+            }
+        }
+
         my $storecfg = PVE::Storage::config();
         my $target_storage = extract_param($param, 'target-storage');
         my $storagemap =
