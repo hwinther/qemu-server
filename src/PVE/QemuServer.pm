@@ -1863,7 +1863,7 @@ sub destroy_vm {
 
         $volids->{$volid} = 1;
         eval { PVE::Storage::vdisk_free($storecfg, $volid) };
-        warn "Could not remove disk '$volid', check manually: $@" if $@;
+        log_warn("Could not remove disk '$volid', check manually: $@") if $@;
     };
 
     # only remove disks owned by this VM (referenced in the config)
@@ -1889,7 +1889,7 @@ sub destroy_vm {
             sub {
                 my ($volid, $sid, $volname, $d) = @_;
                 eval { PVE::Storage::vdisk_free($storecfg, $volid) };
-                warn $@ if $@;
+                log_warn($@) if $@;
             },
         );
     }
