@@ -1557,6 +1557,7 @@ sub vm_is_volid_owner {
     if ($volid !~ m|^/|) {
         my ($path, $owner);
         eval { ($path, $owner) = PVE::Storage::path($storecfg, $volid); };
+        log_warn("ownership of volume '$volid' could not be determined: $@") if $@;
         if ($owner && ($owner == $vmid)) {
             return 1;
         }
@@ -1574,8 +1575,14 @@ sub vmconfig_register_unused_drive {
         delete $conf->{'special-sections'}->{cloudinit};
     } elsif (!drive_is_cdrom($drive)) {
         my $volid = $drive->{file};
-        if (vm_is_volid_owner($storecfg, $vmid, $volid)) {
-            PVE::QemuConfig->add_unused_volume($conf, $volid, $vmid);
+        my ($storeid, undef) = PVE::Storage::parse_volume_id($volid);
+        if (PVE::Storage::storage_config($storecfg, $storeid, 1)) {
+            if (vm_is_volid_owner($storecfg, $vmid, $volid)) {
+                PVE::QemuConfig->add_unused_volume($conf, $volid, $vmid);
+            }
+        } else {
+            log_warn(
+                "storage '$storeid' no longer exists, volume '$volid' will be removed from config");
         }
     }
 }
