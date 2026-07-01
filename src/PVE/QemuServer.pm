@@ -1838,8 +1838,11 @@ sub destroy_vm {
                 my $volid = $drive->{file};
                 return if !$volid || $volid =~ m|^/|;
 
-                die "base volume '$volid' is still in use by linked cloned\n"
-                    if PVE::Storage::volume_is_base_and_used($storecfg, $volid);
+                my $result = eval { PVE::Storage::volume_is_base_and_used($storecfg, $volid) };
+                # early check, removal of volume will fail later anyway, so warning here is fine
+                log_warn("failed to check if volume '$volid' is used by linked clones: $@")
+                    if $@;
+                die "base volume '$volid' is still in use by linked cloned\n" if $result;
 
             },
         );
