@@ -1857,7 +1857,8 @@ sub destroy_vm {
         return if !$volid || $volid =~ m|^/|;
         return if $volids->{$volid};
 
-        my ($path, $owner) = PVE::Storage::path($storecfg, $volid);
+        my ($path, $owner) = eval { PVE::Storage::path($storecfg, $volid) };
+        log_warn("failed to get path and owner of volume '$volid': $@") if $@;
         return if !$path || !$owner || ($owner != $vmid);
 
         $volids->{$volid} = 1;
