@@ -499,7 +499,7 @@ my sub create_disks : prototype($$$$$$$$$$$) {
 
                 $needs_creation = $live_import;
 
-                my ($source_storage, $source_volid) = PVE::Storage::parse_volume_id($source, 1);
+                my ($source_storage) = PVE::Storage::parse_volume_id($source, 1);
 
                 if ($source_storage) { # PVE-managed volume
                     my ($vtype, $source_format) =
