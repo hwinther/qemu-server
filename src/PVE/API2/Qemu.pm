@@ -2172,7 +2172,8 @@ my $update_vm_api = sub {
 
     PVE::QemuServer::check_bridge_access($rpcenv, $authuser, $param);
 
-    my $updatefn = sub {
+    my $load_and_check_config = sub {
+        my ($update_delete) = @_;
 
         my $conf = PVE::QemuConfig->load_config($vmid);
 
@@ -2181,15 +2182,17 @@ my $update_vm_api = sub {
 
         &$check_cpu_model_access($rpcenv, $authuser, $param, $conf);
 
-        # FIXME: 'suspended' lock should probabyl be a state or "weak" lock?!
+        # FIXME: 'suspended' lock should probably be a state or "weak" lock?!
         if (scalar(@delete) && grep { $_ eq 'vmstate' } @delete) {
             if (defined($conf->{lock}) && $conf->{lock} eq 'suspended') {
                 delete $conf->{lock}; # for check lock check, not written out
-                push @delete, 'lock'; # this is the real deal to write it out
+                push @delete, 'lock' if $update_delete; # this is the real deal to write it out
             }
-            push @delete, 'runningmachine' if $conf->{runningmachine};
-            push @delete, 'runningcpu' if $conf->{runningcpu};
-            push @delete, 'running-nets-host-mtu' if $conf->{'running-nets-host-mtu'};
+            if ($update_delete) {
+                push @delete, 'runningmachine' if $conf->{runningmachine};
+                push @delete, 'runningcpu' if $conf->{runningcpu};
+                push @delete, 'running-nets-host-mtu' if $conf->{'running-nets-host-mtu'};
+            }
         }
 
         PVE::QemuConfig->check_lock($conf) if !$skiplock;
@@ -2198,7 +2201,7 @@ my $update_vm_api = sub {
             if (defined($conf->{$opt})) {
                 $param->{$opt} = $conf->{$opt};
             } elsif (defined($conf->{pending}->{$opt})) {
-                push @delete, $opt;
+                push @delete, $opt if $update_delete;
             }
         }
 
@@ -2214,379 +2217,387 @@ my $update_vm_api = sub {
                 if $balloon && $balloon > $maxmem;
         }
 
-        PVE::Cluster::log_msg('info', $authuser, "update VM $vmid: " . join(' ', @paramarr));
-
-        my $worker = sub {
-
-            print "update VM $vmid: " . join(' ', @paramarr) . "\n";
-
-            # write updates to pending section
-
-            my $modified = {}; # record what $option we modify
-
-            my @bootorder;
-            if (my $boot = $conf->{boot}) {
-                my $bootcfg = PVE::JSONSchema::parse_property_string('pve-qm-boot', $boot);
-                @bootorder = PVE::Tools::split_list($bootcfg->{order})
-                    if $bootcfg && $bootcfg->{order};
-            }
-            my $bootorder_deleted = grep { $_ eq 'bootorder' } @delete;
-
-            my $check_drive_perms = sub {
-                my ($opt, $val) = @_;
-                my $drive = PVE::QemuServer::parse_drive($opt, $val, 1);
-                if (PVE::QemuServer::drive_is_cloudinit($drive)) {
-                    $rpcenv->check_vm_perm(
-                        $authuser,
-                        $vmid,
-                        undef,
-                        ['VM.Config.Cloudinit', 'VM.Config.CDROM'],
-                    );
-                } elsif (PVE::QemuServer::drive_is_cdrom($drive, 1)) { # CDROM
-                    $rpcenv->check_vm_perm($authuser, $vmid, undef, ['VM.Config.CDROM']);
-                } else {
-                    $rpcenv->check_vm_perm($authuser, $vmid, undef, ['VM.Config.Disk']);
-
-                }
-            };
-
-            foreach my $opt (@delete) {
-                $modified->{$opt} = 1;
-                $conf = PVE::QemuConfig->load_config($vmid); # update/reload
-
-                # value of what we want to delete, independent if pending or not
-                my $val = $conf->{$opt} // $conf->{pending}->{$opt};
-                if (!defined($val)) {
-                    warn "cannot delete '$opt' - not set in current configuration!\n";
-                    $modified->{$opt} = 0;
-                    next;
-                }
-                my $is_pending_val = defined($conf->{pending}->{$opt});
-                delete $conf->{pending}->{$opt};
-
-                # remove from bootorder if necessary
-                if (!$bootorder_deleted && @bootorder && grep { $_ eq $opt } @bootorder) {
-                    @bootorder = grep { $_ ne $opt } @bootorder;
-                    $conf->{pending}->{boot} = PVE::QemuServer::print_bootorder(\@bootorder);
-                    $modified->{boot} = 1;
-                }
-
-                if ($opt =~ m/^unused/) {
-                    my $drive = PVE::QemuServer::parse_drive($opt, $val);
-                    PVE::QemuConfig->check_protection(
-                        $conf,
-                        "can't remove unused disk '$drive->{file}'",
-                    );
-                    $rpcenv->check_vm_perm($authuser, $vmid, undef, ['VM.Config.Disk']);
-                    if (PVE::QemuServer::try_deallocate_drive(
-                        $storecfg, $vmid, $conf, $opt, $drive, $rpcenv, $authuser,
-                    )) {
-                        delete $conf->{$opt};
-                        PVE::QemuConfig->write_config($vmid, $conf);
-                    }
-                } elsif ($opt eq 'vmstate') {
-                    PVE::QemuConfig->check_protection($conf, "can't remove vmstate '$val'");
-                    if (PVE::QemuServer::try_deallocate_drive(
-                        $storecfg,
-                        $vmid,
-                        $conf,
-                        $opt,
-                        { file => $val },
-                        $rpcenv,
-                        $authuser,
-                        1,
-                    )) {
-                        delete $conf->{$opt};
-                        PVE::QemuConfig->write_config($vmid, $conf);
-                    }
-                } elsif (PVE::QemuServer::is_valid_drivename($opt)) {
-                    PVE::QemuConfig->check_protection($conf, "can't remove drive '$opt'");
-                    $check_drive_perms->($opt, $val);
-                    PVE::QemuServer::vmconfig_register_unused_drive(
-                        $storecfg,
-                        $vmid,
-                        $conf,
-                        PVE::QemuServer::parse_drive($opt, $val),
-                    ) if $is_pending_val;
-                    PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
-                    PVE::QemuConfig->write_config($vmid, $conf);
-                } elsif ($opt =~ m/^serial\d+$/) {
-                    if ($val eq 'socket') {
-                        $rpcenv->check_vm_perm($authuser, $vmid, undef, ['VM.Config.HWType']);
-                    } elsif ($authuser ne 'root@pam') {
-                        die "only root can delete '$opt' config for real devices\n";
-                    }
-                    PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
-                    PVE::QemuConfig->write_config($vmid, $conf);
-                } elsif ($opt =~ m/^usb\d+$/) {
-                    check_usb_perm($rpcenv, $authuser, $vmid, undef, $opt, $val);
-                    PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
-                    PVE::QemuConfig->write_config($vmid, $conf);
-                } elsif ($opt =~ m/^hostpci\d+$/) {
-                    check_hostpci_perm($rpcenv, $authuser, $vmid, undef, $opt, $val);
-                    PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
-                    PVE::QemuConfig->write_config($vmid, $conf);
-                } elsif ($opt =~ m/^rng\d+$/) {
-                    check_rng_perm($rpcenv, $authuser, $vmid, undef, $opt, $val);
-                    PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
-                    PVE::QemuConfig->write_config($vmid, $conf);
-                } elsif ($opt =~ m/^virtiofs\d$/) {
-                    check_dir_perm($rpcenv, $authuser, $vmid, undef, $opt, $val);
-                    PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
-                    PVE::QemuConfig->write_config($vmid, $conf);
-                } elsif ($opt eq 'tags') {
-                    assert_tag_permissions($vmid, $val, '', $rpcenv, $authuser);
-                    delete $conf->{$opt};
-                    PVE::QemuConfig->write_config($vmid, $conf);
-                } elsif ($opt =~ m/^net\d+$/) {
-                    if ($conf->{$opt}) {
-                        PVE::QemuServer::check_bridge_access(
-                            $rpcenv,
-                            $authuser,
-                            { $opt => $conf->{$opt} },
-                        );
-                    }
-                    PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
-                    PVE::QemuConfig->write_config($vmid, $conf);
-                } else {
-                    PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
-                    PVE::QemuConfig->write_config($vmid, $conf);
-                }
-            }
-
-            foreach my $opt (keys %$param) { # add/change
-                $modified->{$opt} = 1;
-                $conf = PVE::QemuConfig->load_config($vmid); # update/reload
-                next
-                    if defined($conf->{pending}->{$opt})
-                    && ($param->{$opt} eq $conf->{pending}->{$opt}); # skip if nothing changed
-
-                my $arch = PVE::QemuServer::Helpers::get_vm_arch($conf);
-
-                if (PVE::QemuServer::is_valid_drivename($opt)) {
-                    # old drive
-                    if ($conf->{$opt}) {
-                        $check_drive_perms->($opt, $conf->{$opt});
-                        prohibit_tpm_version_change($conf->{$opt}, $param->{$opt})
-                            if $opt eq 'tpmstate0';
-                    }
-
-                    # new drive
-                    $check_drive_perms->($opt, $param->{$opt});
-                    PVE::QemuServer::vmconfig_register_unused_drive(
-                        $storecfg,
-                        $vmid,
-                        $conf,
-                        PVE::QemuServer::parse_drive($opt, $conf->{pending}->{$opt}),
-                    ) if defined($conf->{pending}->{$opt});
-
-                    assert_scsi_feature_compatibility($opt, $conf, $storecfg, $param->{$opt})
-                        if $opt =~ m/^scsi\d+$/;
-
-                    my (undef, $created_opts) = create_disks(
-                        $rpcenv,
-                        $authuser,
-                        $conf,
-                        $arch,
-                        $storecfg,
-                        $vmid,
-                        undef,
-                        { $opt => $param->{$opt} },
-                        undef,
-                        undef,
-                        $extraction_storage,
-                    );
-                    $conf->{pending}->{$_} = $created_opts->{$_} for keys $created_opts->%*;
-
-                    # default legacy boot order implies all cdroms anyway
-                    if (@bootorder) {
-                        # append new CD drives to bootorder to mark them bootable
-                        my $drive = PVE::QemuServer::parse_drive($opt, $param->{$opt}, 1);
-                        if (
-                            PVE::QemuServer::drive_is_cdrom($drive, 1)
-                            && !grep(/^$opt$/, @bootorder)
-                        ) {
-                            push @bootorder, $opt;
-                            $conf->{pending}->{boot} =
-                                PVE::QemuServer::print_bootorder(\@bootorder);
-                            $modified->{boot} = 1;
-                        }
-                    }
-                } elsif ($opt =~ m/^serial\d+/) {
-                    if (
-                        (!defined($conf->{$opt}) || $conf->{$opt} eq 'socket')
-                        && $param->{$opt} eq 'socket'
-                    ) {
-                        $rpcenv->check_vm_perm($authuser, $vmid, undef, ['VM.Config.HWType']);
-                    } elsif ($authuser ne 'root@pam') {
-                        die "only root can modify '$opt' config for real devices\n";
-                    }
-                    $conf->{pending}->{$opt} = $param->{$opt};
-                } elsif ($opt eq 'vga') {
-                    my $vga = PVE::QemuServer::parse_vga($param->{$opt});
-                    PVE::QemuServer::assert_clipboard_config($vga);
-                    $conf->{pending}->{$opt} = $param->{$opt};
-                } elsif ($opt =~ m/^usb\d+/) {
-                    if (my $olddevice = $conf->{$opt}) {
-                        check_usb_perm($rpcenv, $authuser, $vmid, undef, $opt, $conf->{$opt});
-                    }
-                    check_usb_perm($rpcenv, $authuser, $vmid, undef, $opt, $param->{$opt});
-                    $conf->{pending}->{$opt} = $param->{$opt};
-                } elsif ($opt =~ m/^hostpci\d+$/) {
-                    if (my $oldvalue = $conf->{$opt}) {
-                        check_hostpci_perm($rpcenv, $authuser, $vmid, undef, $opt, $oldvalue);
-                    }
-                    check_hostpci_perm($rpcenv, $authuser, $vmid, undef, $opt, $param->{$opt});
-                    $conf->{pending}->{$opt} = $param->{$opt};
-                } elsif ($opt =~ m/^rng\d+$/) {
-                    if (my $oldvalue = $conf->{$opt}) {
-                        check_rng_perm($rpcenv, $authuser, $vmid, undef, $opt, $oldvalue);
-                    }
-                    check_rng_perm($rpcenv, $authuser, $vmid, undef, $opt, $param->{$opt});
-                    $conf->{pending}->{$opt} = $param->{$opt};
-                } elsif ($opt =~ m/^virtiofs\d$/) {
-                    if (my $oldvalue = $conf->{$opt}) {
-                        check_dir_perm($rpcenv, $authuser, $vmid, undef, $opt, $oldvalue);
-                    }
-                    check_dir_perm($rpcenv, $authuser, $vmid, undef, $opt, $param->{$opt});
-                    $conf->{pending}->{$opt} = $param->{$opt};
-                } elsif ($opt eq 'tags') {
-                    assert_tag_permissions(
-                        $vmid, $conf->{$opt}, $param->{$opt}, $rpcenv, $authuser,
-                    );
-                    $conf->{pending}->{$opt} =
-                        PVE::GuestHelpers::get_unique_tags($param->{$opt});
-                } elsif ($opt =~ m/^net\d+$/) {
-                    if ($conf->{$opt}) {
-                        PVE::QemuServer::check_bridge_access(
-                            $rpcenv,
-                            $authuser,
-                            { $opt => $conf->{$opt} },
-                        );
-                    }
-                    $conf->{pending}->{$opt} = $param->{$opt};
-                } elsif ($opt eq 'machine') {
-                    my $machine_conf = PVE::QemuServer::Machine::parse_machine($param->{$opt});
-                    PVE::QemuServer::Machine::assert_valid_machine_property($machine_conf);
-                    $conf->{pending}->{$opt} = $param->{$opt};
-                } elsif ($opt eq 'ostype') {
-                    # Check if machine version pinning is needed when switching OS type, just like
-                    # upon creation. Skip if 'machine' is explicitly set or removed at the same time
-                    # to honor the users request. While it should be enough to look at $modified,
-                    # because 'machine' is sorted before 'ostype', be explicit just to be sure.
-                    if (
-                        !defined($param->{machine})
-                        && !defined($conf->{pending}->{machine})
-                        && !$modified->{machine} # detects deletion
-                    ) {
-                        eval {
-                            my $machine_string =
-                                PVE::QemuServer::Machine::check_and_pin_machine_string(
-                                    $conf->{machine}, $param->{ostype}, $arch,
-                                );
-                            $conf->{pending}->{machine} = $machine_string if $machine_string;
-                        };
-                        print "automatic pinning of machine version failed - $@" if $@;
-                    }
-                    $conf->{pending}->{$opt} = $param->{$opt};
-                } elsif ($opt eq 'cipassword') {
-                    if (!PVE::QemuServer::Helpers::windows_version($conf->{ostype})) {
-                        # Same logic as in cloud-init (but with the regex fixed...)
-                        $param->{cipassword} = PVE::Tools::encrypt_pw($param->{cipassword})
-                            if $param->{cipassword} !~ /^\$(?:[156]|2[ay])(\$.+){2}/;
-                    }
-                    $conf->{cipassword} = $param->{cipassword};
-                } else {
-                    $conf->{pending}->{$opt} = $param->{$opt};
-
-                    if ($opt eq 'boot') {
-                        my $new_bootcfg =
-                            PVE::JSONSchema::parse_property_string('pve-qm-boot', $param->{$opt});
-                        if ($new_bootcfg->{order}) {
-                            my @devs = PVE::Tools::split_list($new_bootcfg->{order});
-                            for my $dev (@devs) {
-                                my $exists =
-                                    $conf->{$dev} || $conf->{pending}->{$dev} || $param->{$dev};
-                                my $deleted = grep { $_ eq $dev } @delete;
-                                die "invalid bootorder: device '$dev' does not exist'\n"
-                                    if !$exists || $deleted;
-                            }
-
-                            # remove legacy boot order settings if new one set
-                            $conf->{pending}->{$opt} = PVE::QemuServer::print_bootorder(\@devs);
-                            PVE::QemuConfig->add_to_pending_delete($conf, "bootdisk")
-                                if $conf->{bootdisk};
-                        }
-                    }
-                }
-                PVE::QemuConfig->remove_from_pending_delete($conf, $opt);
-                PVE::QemuConfig->write_config($vmid, $conf);
-            }
-
-            # remove pending changes when nothing changed
-            $conf = PVE::QemuConfig->load_config($vmid); # update/reload
-            my $changes = PVE::QemuConfig->cleanup_pending($conf);
-            PVE::QemuConfig->write_config($vmid, $conf) if $changes;
-
-            return if !scalar(keys %{ $conf->{pending} });
-
-            my $running = PVE::QemuServer::check_running($vmid);
-
-            # apply pending changes
-
-            $conf = PVE::QemuConfig->load_config($vmid); # update/reload
-
-            my $errors = {};
-            if ($running) {
-                PVE::QemuServer::vmconfig_hotplug_pending(
-                    $vmid, $conf, $storecfg, $modified, $errors,
-                );
-            } else {
-                # cloud_init must be skipped if we are in an incoming, remote live migration
-                PVE::QemuServer::vmconfig_apply_pending(
-                    $vmid, $conf, $storecfg, $errors, $skip_cloud_init,
-                );
-            }
-            raise_param_exc($errors) if scalar(keys %$errors);
-
-            return;
-        };
-
-        if ($sync) {
-            &$worker();
-            return;
-        } else {
-            my $upid = $rpcenv->fork_worker('qmconfig', $vmid, $authuser, $worker);
-
-            if ($background_delay) {
-
-                # Note: It would be better to do that in the Event based HTTPServer
-                # to avoid blocking call to sleep.
-
-                my $end_time = time() + $background_delay;
-
-                my $task = PVE::Tools::upid_decode($upid);
-
-                my $running = 1;
-                while (time() < $end_time) {
-                    $running =
-                        PVE::ProcFSTools::check_process_running($task->{pid}, $task->{pstart});
-                    last if !$running;
-                    sleep(1); # this gets interrupted when child process ends
-                }
-
-                if (!$running) {
-                    my $status = PVE::Tools::upid_read_status($upid);
-                    return if !PVE::Tools::upid_status_is_error($status);
-                    die "failed to update VM $vmid: $status\n";
-                }
-            }
-
-            return $upid;
-        }
+        return $conf;
     };
 
-    return PVE::QemuConfig->lock_config($vmid, $updatefn);
+    my $updatefn = sub {
+        my $conf = $load_and_check_config->(1);
+
+        PVE::Cluster::log_msg('info', $authuser, "update VM $vmid: " . join(' ', @paramarr));
+
+        print "update VM $vmid: " . join(' ', @paramarr) . "\n";
+
+        # write updates to pending section
+
+        my $modified = {}; # record what $option we modify
+
+        my @bootorder;
+        if (my $boot = $conf->{boot}) {
+            my $bootcfg = PVE::JSONSchema::parse_property_string('pve-qm-boot', $boot);
+            @bootorder = PVE::Tools::split_list($bootcfg->{order})
+                if $bootcfg && $bootcfg->{order};
+        }
+        my $bootorder_deleted = grep { $_ eq 'bootorder' } @delete;
+
+        my $check_drive_perms = sub {
+            my ($opt, $val) = @_;
+            my $drive = PVE::QemuServer::parse_drive($opt, $val, 1);
+            if (PVE::QemuServer::drive_is_cloudinit($drive)) {
+                $rpcenv->check_vm_perm(
+                    $authuser,
+                    $vmid,
+                    undef,
+                    ['VM.Config.Cloudinit', 'VM.Config.CDROM'],
+                );
+            } elsif (PVE::QemuServer::drive_is_cdrom($drive, 1)) { # CDROM
+                $rpcenv->check_vm_perm($authuser, $vmid, undef, ['VM.Config.CDROM']);
+            } else {
+                $rpcenv->check_vm_perm($authuser, $vmid, undef, ['VM.Config.Disk']);
+
+            }
+        };
+
+        foreach my $opt (@delete) {
+            $modified->{$opt} = 1;
+            $conf = PVE::QemuConfig->load_config($vmid); # update/reload
+
+            # value of what we want to delete, independent if pending or not
+            my $val = $conf->{$opt} // $conf->{pending}->{$opt};
+            if (!defined($val)) {
+                warn "cannot delete '$opt' - not set in current configuration!\n";
+                $modified->{$opt} = 0;
+                next;
+            }
+            my $is_pending_val = defined($conf->{pending}->{$opt});
+            delete $conf->{pending}->{$opt};
+
+            # remove from bootorder if necessary
+            if (!$bootorder_deleted && @bootorder && grep { $_ eq $opt } @bootorder) {
+                @bootorder = grep { $_ ne $opt } @bootorder;
+                $conf->{pending}->{boot} = PVE::QemuServer::print_bootorder(\@bootorder);
+                $modified->{boot} = 1;
+            }
+
+            if ($opt =~ m/^unused/) {
+                my $drive = PVE::QemuServer::parse_drive($opt, $val);
+                PVE::QemuConfig->check_protection(
+                    $conf,
+                    "can't remove unused disk '$drive->{file}'",
+                );
+                $rpcenv->check_vm_perm($authuser, $vmid, undef, ['VM.Config.Disk']);
+                if (PVE::QemuServer::try_deallocate_drive(
+                    $storecfg, $vmid, $conf, $opt, $drive, $rpcenv, $authuser,
+                )) {
+                    delete $conf->{$opt};
+                    PVE::QemuConfig->write_config($vmid, $conf);
+                }
+            } elsif ($opt eq 'vmstate') {
+                PVE::QemuConfig->check_protection($conf, "can't remove vmstate '$val'");
+                if (PVE::QemuServer::try_deallocate_drive(
+                    $storecfg,
+                    $vmid,
+                    $conf,
+                    $opt,
+                    { file => $val },
+                    $rpcenv,
+                    $authuser,
+                    1,
+                )) {
+                    delete $conf->{$opt};
+                    PVE::QemuConfig->write_config($vmid, $conf);
+                }
+            } elsif (PVE::QemuServer::is_valid_drivename($opt)) {
+                PVE::QemuConfig->check_protection($conf, "can't remove drive '$opt'");
+                $check_drive_perms->($opt, $val);
+                PVE::QemuServer::vmconfig_register_unused_drive(
+                    $storecfg,
+                    $vmid,
+                    $conf,
+                    PVE::QemuServer::parse_drive($opt, $val),
+                ) if $is_pending_val;
+                PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
+                PVE::QemuConfig->write_config($vmid, $conf);
+            } elsif ($opt =~ m/^serial\d+$/) {
+                if ($val eq 'socket') {
+                    $rpcenv->check_vm_perm($authuser, $vmid, undef, ['VM.Config.HWType']);
+                } elsif ($authuser ne 'root@pam') {
+                    die "only root can delete '$opt' config for real devices\n";
+                }
+                PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
+                PVE::QemuConfig->write_config($vmid, $conf);
+            } elsif ($opt =~ m/^usb\d+$/) {
+                check_usb_perm($rpcenv, $authuser, $vmid, undef, $opt, $val);
+                PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
+                PVE::QemuConfig->write_config($vmid, $conf);
+            } elsif ($opt =~ m/^hostpci\d+$/) {
+                check_hostpci_perm($rpcenv, $authuser, $vmid, undef, $opt, $val);
+                PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
+                PVE::QemuConfig->write_config($vmid, $conf);
+            } elsif ($opt =~ m/^rng\d+$/) {
+                check_rng_perm($rpcenv, $authuser, $vmid, undef, $opt, $val);
+                PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
+                PVE::QemuConfig->write_config($vmid, $conf);
+            } elsif ($opt =~ m/^virtiofs\d$/) {
+                check_dir_perm($rpcenv, $authuser, $vmid, undef, $opt, $val);
+                PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
+                PVE::QemuConfig->write_config($vmid, $conf);
+            } elsif ($opt eq 'tags') {
+                assert_tag_permissions($vmid, $val, '', $rpcenv, $authuser);
+                delete $conf->{$opt};
+                PVE::QemuConfig->write_config($vmid, $conf);
+            } elsif ($opt =~ m/^net\d+$/) {
+                if ($conf->{$opt}) {
+                    PVE::QemuServer::check_bridge_access(
+                        $rpcenv,
+                        $authuser,
+                        { $opt => $conf->{$opt} },
+                    );
+                }
+                PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
+                PVE::QemuConfig->write_config($vmid, $conf);
+            } else {
+                PVE::QemuConfig->add_to_pending_delete($conf, $opt, $force);
+                PVE::QemuConfig->write_config($vmid, $conf);
+            }
+        }
+
+        foreach my $opt (keys %$param) { # add/change
+            $modified->{$opt} = 1;
+            $conf = PVE::QemuConfig->load_config($vmid); # update/reload
+            next
+                if defined($conf->{pending}->{$opt})
+                && ($param->{$opt} eq $conf->{pending}->{$opt}); # skip if nothing changed
+
+            my $arch = PVE::QemuServer::Helpers::get_vm_arch($conf);
+
+            if (PVE::QemuServer::is_valid_drivename($opt)) {
+                # old drive
+                if ($conf->{$opt}) {
+                    $check_drive_perms->($opt, $conf->{$opt});
+                    prohibit_tpm_version_change($conf->{$opt}, $param->{$opt})
+                        if $opt eq 'tpmstate0';
+                }
+
+                # new drive
+                $check_drive_perms->($opt, $param->{$opt});
+                PVE::QemuServer::vmconfig_register_unused_drive(
+                    $storecfg,
+                    $vmid,
+                    $conf,
+                    PVE::QemuServer::parse_drive($opt, $conf->{pending}->{$opt}),
+                ) if defined($conf->{pending}->{$opt});
+
+                assert_scsi_feature_compatibility($opt, $conf, $storecfg, $param->{$opt})
+                    if $opt =~ m/^scsi\d+$/;
+
+                my (undef, $created_opts) = create_disks(
+                    $rpcenv,
+                    $authuser,
+                    $conf,
+                    $arch,
+                    $storecfg,
+                    $vmid,
+                    undef,
+                    { $opt => $param->{$opt} },
+                    undef,
+                    undef,
+                    $extraction_storage,
+                );
+                $conf->{pending}->{$_} = $created_opts->{$_} for keys $created_opts->%*;
+
+                # default legacy boot order implies all cdroms anyway
+                if (@bootorder) {
+                    # append new CD drives to bootorder to mark them bootable
+                    my $drive = PVE::QemuServer::parse_drive($opt, $param->{$opt}, 1);
+                    if (
+                        PVE::QemuServer::drive_is_cdrom($drive, 1)
+                        && !grep(/^$opt$/, @bootorder)
+                    ) {
+                        push @bootorder, $opt;
+                        $conf->{pending}->{boot} =
+                            PVE::QemuServer::print_bootorder(\@bootorder);
+                        $modified->{boot} = 1;
+                    }
+                }
+            } elsif ($opt =~ m/^serial\d+/) {
+                if (
+                    (!defined($conf->{$opt}) || $conf->{$opt} eq 'socket')
+                    && $param->{$opt} eq 'socket'
+                ) {
+                    $rpcenv->check_vm_perm($authuser, $vmid, undef, ['VM.Config.HWType']);
+                } elsif ($authuser ne 'root@pam') {
+                    die "only root can modify '$opt' config for real devices\n";
+                }
+                $conf->{pending}->{$opt} = $param->{$opt};
+            } elsif ($opt eq 'vga') {
+                my $vga = PVE::QemuServer::parse_vga($param->{$opt});
+                PVE::QemuServer::assert_clipboard_config($vga);
+                $conf->{pending}->{$opt} = $param->{$opt};
+            } elsif ($opt =~ m/^usb\d+/) {
+                if (my $olddevice = $conf->{$opt}) {
+                    check_usb_perm($rpcenv, $authuser, $vmid, undef, $opt, $conf->{$opt});
+                }
+                check_usb_perm($rpcenv, $authuser, $vmid, undef, $opt, $param->{$opt});
+                $conf->{pending}->{$opt} = $param->{$opt};
+            } elsif ($opt =~ m/^hostpci\d+$/) {
+                if (my $oldvalue = $conf->{$opt}) {
+                    check_hostpci_perm($rpcenv, $authuser, $vmid, undef, $opt, $oldvalue);
+                }
+                check_hostpci_perm($rpcenv, $authuser, $vmid, undef, $opt, $param->{$opt});
+                $conf->{pending}->{$opt} = $param->{$opt};
+            } elsif ($opt =~ m/^rng\d+$/) {
+                if (my $oldvalue = $conf->{$opt}) {
+                    check_rng_perm($rpcenv, $authuser, $vmid, undef, $opt, $oldvalue);
+                }
+                check_rng_perm($rpcenv, $authuser, $vmid, undef, $opt, $param->{$opt});
+                $conf->{pending}->{$opt} = $param->{$opt};
+            } elsif ($opt =~ m/^virtiofs\d$/) {
+                if (my $oldvalue = $conf->{$opt}) {
+                    check_dir_perm($rpcenv, $authuser, $vmid, undef, $opt, $oldvalue);
+                }
+                check_dir_perm($rpcenv, $authuser, $vmid, undef, $opt, $param->{$opt});
+                $conf->{pending}->{$opt} = $param->{$opt};
+            } elsif ($opt eq 'tags') {
+                assert_tag_permissions(
+                    $vmid, $conf->{$opt}, $param->{$opt}, $rpcenv, $authuser,
+                );
+                $conf->{pending}->{$opt} =
+                    PVE::GuestHelpers::get_unique_tags($param->{$opt});
+            } elsif ($opt =~ m/^net\d+$/) {
+                if ($conf->{$opt}) {
+                    PVE::QemuServer::check_bridge_access(
+                        $rpcenv,
+                        $authuser,
+                        { $opt => $conf->{$opt} },
+                    );
+                }
+                $conf->{pending}->{$opt} = $param->{$opt};
+            } elsif ($opt eq 'machine') {
+                my $machine_conf = PVE::QemuServer::Machine::parse_machine($param->{$opt});
+                PVE::QemuServer::Machine::assert_valid_machine_property($machine_conf);
+                $conf->{pending}->{$opt} = $param->{$opt};
+            } elsif ($opt eq 'ostype') {
+                # Check if machine version pinning is needed when switching OS type, just like
+                # upon creation. Skip if 'machine' is explicitly set or removed at the same time
+                # to honor the users request. While it should be enough to look at $modified,
+                # because 'machine' is sorted before 'ostype', be explicit just to be sure.
+                if (
+                    !defined($param->{machine})
+                    && !defined($conf->{pending}->{machine})
+                    && !$modified->{machine} # detects deletion
+                ) {
+                    eval {
+                        my $machine_string =
+                            PVE::QemuServer::Machine::check_and_pin_machine_string(
+                                $conf->{machine}, $param->{ostype}, $arch,
+                            );
+                        $conf->{pending}->{machine} = $machine_string if $machine_string;
+                    };
+                    print "automatic pinning of machine version failed - $@" if $@;
+                }
+                $conf->{pending}->{$opt} = $param->{$opt};
+            } elsif ($opt eq 'cipassword') {
+                if (!PVE::QemuServer::Helpers::windows_version($conf->{ostype})) {
+                    # Same logic as in cloud-init (but with the regex fixed...)
+                    $param->{cipassword} = PVE::Tools::encrypt_pw($param->{cipassword})
+                        if $param->{cipassword} !~ /^\$(?:[156]|2[ay])(\$.+){2}/;
+                }
+                $conf->{cipassword} = $param->{cipassword};
+            } else {
+                $conf->{pending}->{$opt} = $param->{$opt};
+
+                if ($opt eq 'boot') {
+                    my $new_bootcfg =
+                        PVE::JSONSchema::parse_property_string('pve-qm-boot', $param->{$opt});
+                    if ($new_bootcfg->{order}) {
+                        my @devs = PVE::Tools::split_list($new_bootcfg->{order});
+                        for my $dev (@devs) {
+                            my $exists =
+                                $conf->{$dev} || $conf->{pending}->{$dev} || $param->{$dev};
+                            my $deleted = grep { $_ eq $dev } @delete;
+                            die "invalid bootorder: device '$dev' does not exist'\n"
+                                if !$exists || $deleted;
+                        }
+
+                        # remove legacy boot order settings if new one set
+                        $conf->{pending}->{$opt} = PVE::QemuServer::print_bootorder(\@devs);
+                        PVE::QemuConfig->add_to_pending_delete($conf, "bootdisk")
+                            if $conf->{bootdisk};
+                    }
+                }
+            }
+            PVE::QemuConfig->remove_from_pending_delete($conf, $opt);
+            PVE::QemuConfig->write_config($vmid, $conf);
+        }
+
+        # remove pending changes when nothing changed
+        $conf = PVE::QemuConfig->load_config($vmid); # update/reload
+        my $changes = PVE::QemuConfig->cleanup_pending($conf);
+        PVE::QemuConfig->write_config($vmid, $conf) if $changes;
+
+        return if !scalar(keys %{ $conf->{pending} });
+
+        my $running = PVE::QemuServer::check_running($vmid);
+
+        # apply pending changes
+
+        $conf = PVE::QemuConfig->load_config($vmid); # update/reload
+
+        my $errors = {};
+        if ($running) {
+            PVE::QemuServer::vmconfig_hotplug_pending(
+                $vmid, $conf, $storecfg, $modified, $errors,
+            );
+        } else {
+            # cloud_init must be skipped if we are in an incoming, remote live migration
+            PVE::QemuServer::vmconfig_apply_pending(
+                $vmid, $conf, $storecfg, $errors, $skip_cloud_init,
+            );
+        }
+        raise_param_exc($errors) if scalar(keys %$errors);
+
+        return;
+    };
+
+    $load_and_check_config->(0); # early checks before forking/locking
+
+    if ($sync) {
+        PVE::QemuConfig->lock_config($vmid, $updatefn);
+        return;
+    } else {
+        my $upid = $rpcenv->fork_worker(
+            'qmconfig',
+            $vmid,
+            $authuser,
+            sub { PVE::QemuConfig->lock_config($vmid, $updatefn); },
+        );
+
+        if ($background_delay) {
+
+            # Note: It would be better to do that in the Event based HTTPServer
+            # to avoid blocking call to sleep.
+
+            my $end_time = time() + $background_delay;
+
+            my $task = PVE::Tools::upid_decode($upid);
+
+            my $running = 1;
+            while (time() < $end_time) {
+                $running =
+                    PVE::ProcFSTools::check_process_running($task->{pid}, $task->{pstart});
+                last if !$running;
+                sleep(1); # this gets interrupted when child process ends
+            }
+
+            if (!$running) {
+                my $status = PVE::Tools::upid_read_status($upid);
+                return if !PVE::Tools::upid_status_is_error($status);
+                die "failed to update VM $vmid: $status\n";
+            }
+        }
+
+        return $upid;
+    }
 };
 
 my $vm_config_perm_list = [
