@@ -390,10 +390,13 @@ my $import_from_volid = sub {
     };
 
     my $cloned;
-    if ($running) {
-        $cloned = PVE::QemuConfig->lock_config_full($src_vmid, 30, $clonefn);
-    } elsif ($src_vmid) {
-        $cloned = PVE::QemuConfig->lock_config_shared($src_vmid, 30, $clonefn);
+    # The config is already locked for the destination.
+    if ($src_vmid && $src_vmid != $dest_info->{vmid}) {
+        if ($running) {
+            $cloned = PVE::QemuConfig->lock_config_full($src_vmid, 30, $clonefn);
+        } else {
+            $cloned = PVE::QemuConfig->lock_config_shared($src_vmid, 30, $clonefn);
+        }
     } else {
         $cloned = $clonefn->();
     }
