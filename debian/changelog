@@ -1,3 +1,38 @@
+qemu-server (9.1.19) trixie; urgency=medium
+
+  * fix #3711: allow removing a VM even if one of its storages no longer
+    exists, instead of aborting the removal and leaving the VM behind. Related
+    handling of storage errors was made more robust and consistent:
+    - check that a volume's storage still exists before the ownership check,
+      and warn instead of silently continuing on a storage error
+    - warn and continue if the linked-clone check errors out, as it runs again
+      later and still blocks removal when clones exist
+    - log the remaining storage and disk-free errors as warnings for
+      consistency
+
+  * fix #7654: qmeventd: fix a use-after-free of a client struct by deferring
+    its free to the main client-handling loop, instead of freeing it inline
+    during cleanup.
+
+  * fix #7743: disk import: avoid attempting to lock the VM configuration twice
+    when importing a disk from an OVA or from another volume of the same VM,
+    which could make the import fail. The VM update API endpoint now also forks
+    before locking, matching the pattern used by other endpoints.
+
+  * remote migration: validate custom CPU models against the target node
+    before starting, so a missing or mismatched definition aborts early with a
+    clear error instead of failing cryptically during the migration.
+
+  * disk clone: warn when the target storage's default format is used as a
+    fallback because the requested format is not available, matching disk
+    import. The 'format' option descriptions for the clone and disk-move
+    endpoints were clarified accordingly.
+
+  * vm start: log the running QEMU package version to the system journal, so
+    the exact build in use can be identified later.
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 07 Jul 2026 19:53:38 +0200
+
 qemu-server (9.1.18) trixie; urgency=medium
 
   * fix #7627: network: virtio: disable the host UDP tunnel offload feature by
