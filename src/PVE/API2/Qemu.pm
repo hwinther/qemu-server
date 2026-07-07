@@ -4352,7 +4352,9 @@ __PACKAGE__->register_method({
                 },
             ),
             'format' => {
-                description => "Target format for file storage. Only valid for full clone.",
+                description =>
+                    "Target disk format. Only valid for full clone. If the target storage does not"
+                    . " support the format, the storage's default format is used instead.",
                 type => 'string',
                 optional => 1,
                 enum => ['raw', 'qcow2', 'vmdk'],
@@ -4753,7 +4755,10 @@ __PACKAGE__->register_method({
             ),
             'format' => {
                 type => 'string',
-                description => "Target Format.",
+                description =>
+                    "Target disk format. Only used when moving to a different storage. If the"
+                    . " target storage does not support the format, the storage's default format"
+                    . " is used instead.",
                 enum => ['raw', 'qcow2', 'vmdk'],
                 optional => 1,
             },
