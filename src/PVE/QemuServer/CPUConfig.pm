@@ -1055,6 +1055,18 @@ sub get_pve_cpu_flags(
         };
     }
 
+    if (
+        $arch eq 'x86_64'
+        && min_version($qemu_binary_version, 11, 0) # The vmx-mbec flag got introduced in QEMU 11.0.
+        && $cputype eq 'host' # Other QEMU CPU models did not expose the vmx-mbec flag in 11.0.
+        && !min_version($machine_version, 11, 0)
+    ) {
+        $pve_flags->{'vmx-mbec'} = {
+            op => '-',
+            reason => "$pve_msg for backwards compatibility with older kernel and QEMU",
+        };
+    }
+
     return $pve_flags;
 }
 

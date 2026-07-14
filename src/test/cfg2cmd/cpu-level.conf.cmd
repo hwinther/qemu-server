@@ -13,7 +13,7 @@
   -boot 'menu=on,strict=on,reboot-timeout=1000,splash=/usr/share/qemu-server/bootsplash.jpg' \
   -vnc 'unix:/var/run/qemu-server/8006.vnc,password=on' \
   -global 'kvm-pit.lost_tick_policy=discard' \
-  -cpu 'host,level=30,-cet-ibt,-cet-ss,-hv-tlbflush,hv_ipi,hv_relaxed,hv_reset,hv_runtime,hv_spinlocks=0x1fff,hv_stimer,hv_synic,hv_time,hv_vapic,hv_vpindex,+kvm_pv_eoi,+kvm_pv_unhalt,+md-clear,+pdpe1gb' \
+  -cpu 'host,level=30,-cet-ibt,-cet-ss,-hv-tlbflush,hv_ipi,hv_relaxed,hv_reset,hv_runtime,hv_spinlocks=0x1fff,hv_stimer,hv_synic,hv_time,hv_vapic,hv_vpindex,+kvm_pv_eoi,+kvm_pv_unhalt,+md-clear,+pdpe1gb,-vmx-mbec' \
   -m 768 \
   -device 'pci-bridge,id=pci.1,chassis_nr=1,bus=pci.0,addr=0x1e' \
   -device 'pci-bridge,id=pci.2,chassis_nr=2,bus=pci.0,addr=0x1f' \
