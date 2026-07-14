@@ -862,7 +862,7 @@ my sub check_phys_bits_above_40_compat($bios, $cpu_type, $cpu_flags) {
 
 # Calculate QEMU's '-cpu' argument from a given VM configuration
 sub get_cpu_options(
-    $conf, $arch, $kvm, $kvm_off, $machine_version, $winversion, $gpu_passthrough,
+    $conf, $arch, $kvm, $kvm_off, $version_guard, $winversion, $gpu_passthrough,
     $qemu_binary_version,
 ) {
 
@@ -902,14 +902,14 @@ sub get_cpu_options(
         if !defined(get_cpu_models_by_arch($arch)->{$cputype});
 
     my $pve_flags = get_pve_cpu_flags(
-        $conf, $kvm, $cputype, $arch, $machine_version, $winversion, $qemu_binary_version,
+        $conf, $kvm, $cputype, $arch, $version_guard, $winversion, $qemu_binary_version,
     );
 
     my $hv_flags;
     if ($kvm && $arch eq 'x86_64') {
         $hv_flags = get_hyperv_enlightenments(
             $winversion,
-            $machine_version,
+            $version_guard,
             $conf->{bios},
             $gpu_passthrough,
             $hv_vendor_id,
@@ -999,7 +999,7 @@ sub get_cpu_options(
 
 # Some hardcoded flags required by certain configurations
 sub get_pve_cpu_flags(
-    $conf, $kvm, $cputype, $arch, $machine_version, $winversion, $qemu_binary_version,
+    $conf, $kvm, $cputype, $arch, $version_guard, $winversion, $qemu_binary_version,
 ) {
 
     my $pve_flags = {};
@@ -1033,7 +1033,7 @@ sub get_pve_cpu_flags(
         };
     }
 
-    if (min_version($machine_version, 2, 3) && $kvm && $arch eq 'x86_64') {
+    if ($version_guard->(2, 3) && $kvm && $arch eq 'x86_64') {
         $pve_flags->{'kvm_pv_unhalt'} = {
             op => '+',
             reason => "$pve_msg to improve Linux guest spinlock performance",
@@ -1059,7 +1059,7 @@ sub get_pve_cpu_flags(
         $arch eq 'x86_64'
         && min_version($qemu_binary_version, 11, 0) # The vmx-mbec flag got introduced in QEMU 11.0.
         && $cputype eq 'host' # Other QEMU CPU models did not expose the vmx-mbec flag in 11.0.
-        && !min_version($machine_version, 11, 0)
+        && !$version_guard->(11, 0)
     ) {
         $pve_flags->{'vmx-mbec'} = {
             op => '-',
@@ -1071,7 +1071,7 @@ sub get_pve_cpu_flags(
 }
 
 sub get_hyperv_enlightenments(
-    $winversion, $machine_version, $bios, $gpu_passthrough, $hv_vendor_id = undef,
+    $winversion, $version_guard, $bios, $gpu_passthrough, $hv_vendor_id = undef,
 ) {
 
     return if $winversion < 6;
@@ -1099,7 +1099,7 @@ sub get_hyperv_enlightenments(
         );
     }
 
-    if (min_version($machine_version, 2, 3)) {
+    if ($version_guard->(2, 3)) {
         $flagfn->('hv_spinlocks', '0x1fff');
         $flagfn->('hv_vapic');
         $flagfn->('hv_time');
@@ -1107,7 +1107,7 @@ sub get_hyperv_enlightenments(
         $flagfn->('hv_spinlocks', '0xffff');
     }
 
-    if (min_version($machine_version, 2, 6)) {
+    if ($version_guard->(2, 6)) {
         $flagfn->('hv_reset');
         $flagfn->('hv_vpindex');
         $flagfn->('hv_runtime');
@@ -1117,12 +1117,12 @@ sub get_hyperv_enlightenments(
         my $win7_reason = $default_reason . " 7 and higher";
         $flagfn->('hv_relaxed', undef, $win7_reason);
 
-        if (min_version($machine_version, 2, 12)) {
+        if ($version_guard->(2, 12)) {
             $flagfn->('hv_synic', undef, $win7_reason);
             $flagfn->('hv_stimer', undef, $win7_reason);
         }
 
-        if (min_version($machine_version, 3, 1)) {
+        if ($version_guard->(3, 1)) {
             $flagfn->('hv_ipi', undef, $win7_reason);
         }
     }

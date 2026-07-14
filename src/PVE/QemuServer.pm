@@ -3418,7 +3418,7 @@ sub config_to_command {
                 $arch,
                 $kvm,
                 $kvm_off,
-                $machine_version,
+                $version_guard,
                 $winversion,
                 $gpu_passthrough,
                 $kvmver,
