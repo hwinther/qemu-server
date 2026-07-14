@@ -184,6 +184,7 @@ my $current_test; # = {
 #   description => 'Test description', # if available
 #   qemu_version => '2.12',
 #   host_arch => 'HOST_ARCH',
+#   'host-cpu-vendor' => 'HOST_CPU_VENDOR',
 #   expected_error => 'error message',
 #   expected_warning => 'warning message',
 #   config => { config hash },
@@ -194,6 +195,7 @@ my $current_test; # = {
 #   TEST: A single line describing the test, gets outputted
 #   QEMU_VERSION: \d+\.\d+(\.\d+)? (defaults to current version)
 #   HOST_ARCH: x86_64 | aarch64 (default to x86_64, to make tests stable)
+#   HOST_CPU_VENDOR: AuthenticAMD | GenuineIntel | etc. (defaults to GenuineIntel)
 #   EXPECT_ERROR: <error message> For negative tests
 #   EXPECT_WARN(ING): <warning message> that is expected
 #   HW_CAPABILITIES: <cpu-type-or-json-string> to defined the HW caps the test should expose
@@ -209,6 +211,8 @@ sub parse_test($config_fn) {
 
     my $description = $config->{description} // '';
 
+    $current_test->{'host-cpu-vendor'} = 'GenuineIntel';
+
     while ($description =~ /^\h*(.*?)\h*$/gm) {
         my $line = $1;
         next if !$line || $line =~ /^#/;
@@ -221,6 +225,8 @@ sub parse_test($config_fn) {
             $current_test->{qemu_version} = "$1";
         } elsif ($line =~ /^HOST_ARCH:\s*(.*)\s*$/) {
             $current_test->{host_arch} = "$1";
+        } elsif ($line =~ /^HOST_CPU_VENDOR:\s*(.*)\s*$/) {
+            $current_test->{'host-cpu-vendor'} = "$1";
         } elsif ($line =~ /^EXPECT_ERROR:\s*(.*)\s*$/) {
             $current_test->{expect_error} = "$1";
         } elsif ($line =~ /^EXPECT_WARN(?:ING)?:\s*(.*)\s*$/) {
@@ -248,7 +254,9 @@ my $procfs_tools_module = Test::MockModule->new('PVE::ProcFSTools');
 $procfs_tools_module->mock(
     read_cpuinfo => sub {
         my $res = $procfs_tools_module->original('read_cpuinfo')->();
-        $res->{vendor} = 'GenuineIntel';
+        my $vendor = $current_test->{'host-cpu-vendor'}
+            or die "internal error - host cpu vendor not set";
+        $res->{vendor} = $vendor;
         return $res;
     },
 );
