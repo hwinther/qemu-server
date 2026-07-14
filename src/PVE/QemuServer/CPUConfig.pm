@@ -1127,6 +1127,14 @@ sub get_hyperv_enlightenments(
         }
     }
 
+    if (
+        PVE::ProcFSTools::read_cpuinfo->{vendor} eq 'GenuineIntel'
+        && $winversion >= 11
+        && $version_guard->(11, 0, 2)
+    ) {
+        $flagfn->('hv_evmcs', undef, $default_reason . " for Windows 11 on Intel host");
+    }
+
     return $flags;
 }
 

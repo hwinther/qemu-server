@@ -244,6 +244,15 @@ sub get_test_qemu_version {
     $current_test->{qemu_version} // $base_env->{real_qemu_version} // '2.12';
 }
 
+my $procfs_tools_module = Test::MockModule->new('PVE::ProcFSTools');
+$procfs_tools_module->mock(
+    read_cpuinfo => sub {
+        my $res = $procfs_tools_module->original('read_cpuinfo')->();
+        $res->{vendor} = 'GenuineIntel';
+        return $res;
+    },
+);
+
 my $qemu_server_module;
 $qemu_server_module = Test::MockModule->new('PVE::QemuServer');
 $qemu_server_module->mock(

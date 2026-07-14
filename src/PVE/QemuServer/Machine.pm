@@ -44,9 +44,10 @@ our $PVE_MACHINE_VERSION = {
         },
     },
     '11.0' => {
-        highest => 1,
+        highest => 2,
         revisions => {
             '+pve1' => 'Use host_tunnel=off by default for VirtIO NICs.',
+            '+pve2' => 'Enable hv_emcs for Windows 11/2022/2025 to mitigate issues with VBS.',
         },
     },
 };
