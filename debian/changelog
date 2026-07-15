@@ -1,3 +1,33 @@
+qemu-server (9.2.0) trixie; urgency=medium
+
+  * fix #6424: qmp: increase the timeout for the 'quit' command to 60 seconds,
+    so that bulk suspend no longer runs into spurious timeouts. The command
+    itself is fast, but getting its response can take a while when QEMU is
+    already busy with teardown.
+
+  * suspend: do not start the VM again after successfully saving its state for
+    hibernation, so it stays stopped and QMP 'quit' is issued cleanly. Requires
+    QEMU 11.0.2 or newer and is version-guarded accordingly.
+
+  * cpu config: mitigate guest freezes and 100% CPU usage seen on certain Intel
+    CPUs with Windows guests that use Virtualization-Based Security (VBS) and
+    MBEC:
+    - enable the Hyper-V enlightened VMCS (hv-evmcs) flag for Windows
+      11/2022/2025 guests on Intel hosts, starting with machine version
+      11.0+pve2
+    - disable the vmx-mbec flag for machine versions before 11.0, so existing
+      VMs keep their previous behavior instead of suddenly being affected
+
+  * api: create: also accept VM.PowerMgmt on the VM's resource pool for the
+    upfront check when starting a VM right after creation, matching how
+    starting an existing pooled VM works; previously only the permission on the
+    VM path was honored.
+
+  * api: create: check tag permissions when a VM is created with tags set, so
+    tag restrictions are enforced already at creation time.
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 15 Jul 2026 14:28:35 +0200
+
 qemu-server (9.1.19) trixie; urgency=medium
 
   * fix #3711: allow removing a VM even if one of its storages no longer
